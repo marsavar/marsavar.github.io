@@ -1,0 +1,31 @@
+---
+import { Markdown } from "astro/components";
+const introUrl =
+  "https://raw.githubusercontent.com/MarSavar/MarSavar/master/README.md";
+const markdown = await fetch(introUrl);
+const markdownText = await markdown.text();
+const intro = markdownText
+  .split("\n")
+  .filter((line) => !line.startsWith("#"))
+  .join("\n");
+---
+
+<div>
+  <Markdown>
+    {intro}
+  </Markdown>
+</div>
+
+<style lang="scss">
+  div {
+    margin-top: 30px;
+    font-size: 1.2rem;
+    line-height: 1.6rem;
+    max-width: 1000px;
+  }
+
+  li {
+    list-style-type: none;
+    margin-left: -20px;
+  }
+</style>
