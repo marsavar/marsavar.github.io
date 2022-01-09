@@ -10,4 +10,9 @@
 export default /** @type {import('astro').AstroUserConfig} */ ({
   // Comment out "renderers: []" to enable Astro's default component support.
   renderers: [],
+  buildOptions: {
+	  site: "https://www.mariosavarese.com/",
+	  sitemap: true,
+	  pageUrlFormat: "file",
+  },
 });
