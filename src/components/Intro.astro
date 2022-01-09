@@ -1,7 +1,7 @@
 ---
 import { Markdown } from "astro/components";
 const introUrl =
-  "https://raw.githubusercontent.com/MarSavar/MarSavar/master/README.md";
+  "https://raw.githubusercontent.com/MarSavar/MarSavar/main/README.md";
 const markdown = await fetch(introUrl);
 const markdownText = await markdown.text();
 const intro = markdownText
