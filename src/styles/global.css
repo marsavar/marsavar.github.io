@@ -1,9 +1,9 @@
 body {
   height: 100%;
+  font-family: Helvetica, sans-serif;
 }
 
 a {
-  font-family: "Inter", sans-serif;
   border-bottom: 1px solid #fcd303;
   color: black;
   text-decoration: none;
