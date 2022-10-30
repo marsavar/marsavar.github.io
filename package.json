@@ -9,7 +9,9 @@
     "preview": "astro preview"
   },
   "devDependencies": {
-    "astro": "^0.22.9",
-    "prettier-plugin-astro": "^0.0.11"
+    "@astrojs/markdown-component": "^1.0.1",
+    "astro": "^1.6.1",
+    "prettier-plugin-astro": "0.7.0",
+    "sass": "^1.55.0"
   }
 }

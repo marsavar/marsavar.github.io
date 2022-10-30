@@ -1,3 +1,4 @@
+import { defineConfig } from "astro/config";
 // Full Astro Configuration API Documentation:
 // https://docs.astro.build/reference/configuration-reference
 
@@ -7,12 +8,13 @@
 // You can disable this by removing "@ts-check" and `@type` comments below.
 
 // @ts-check
-export default /** @type {import('astro').AstroUserConfig} */ ({
+
+// https://astro.build/config
+export default defineConfig( /** @type {import('astro').AstroUserConfig} */{
   // Comment out "renderers: []" to enable Astro's default component support.
-  renderers: [],
-  buildOptions: {
-	  site: "https://www.mariosavarese.com/",
-	  sitemap: true,
-	  pageUrlFormat: "file",
-  },
+  integrations: [],
+  site: "https://www.mariosavarese.com/",
+  build: {
+    format: "file"
+  }
 });
