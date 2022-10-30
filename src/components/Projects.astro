@@ -1,0 +1,60 @@
+---
+export type Project = {
+  url: string;
+  title: string;
+  description: string;
+};
+
+const { projects } = Astro.props;
+---
+
+<div class="container">
+  <div>
+    <ul>
+      {
+        projects.map((p: Project) => (
+          <li>
+            <div>
+              <div>
+                <a href={p.url}>{p.title}</a>
+              </div>
+              <p>{p.description}</p>
+            </div>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+</div>
+
+<style>
+  div > a {
+    font-weight: 400;
+    font-size: 1.3rem;
+    text-transform: lowercase;
+  }
+
+  ul {
+    padding-left: 0;
+  }
+
+  li {
+    line-height: 3rem;
+    list-style-type: none;
+    margin-bottom: 1rem;
+  }
+
+  .container {
+    margin-top: 4rem;
+  }
+
+  div {
+    font-size: 1.2rem;
+    line-height: 1.6rem;
+    max-width: 1000px;
+  }
+
+  p {
+    margin-top: 0.5rem;
+  }
+</style>

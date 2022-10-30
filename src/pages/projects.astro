@@ -1,0 +1,47 @@
+---
+import Projects, { Project } from "../components/Projects.astro";
+import Head from "../components/Head.astro";
+import Header from "../components/Header.astro";
+import Footer from "../components/Footer.astro";
+import "../styles/global.css";
+
+const projects: Project[] = [
+  {
+    url: "https://crates.io/crates/aletheia",
+    title: "Aletheia",
+    description:
+      "An HTTP client library for the Guardian's content API written in Rust.",
+  },
+  {
+    url: "https://www.mariosavarese.com/new-yorker-music",
+    title: "The New Yorker Music Project",
+    description:
+      "A searchable archive of the New Yorker's Jazz, Rock, and Pop music recommendations.",
+  },
+];
+---
+
+<html lang="en">
+  <Head />
+  <body>
+    <Header />
+    <Projects projects={projects} />
+    <Footer />
+  </body>
+</html>
+
+<style lang="scss">
+  body {
+    margin: 20px;
+    font-family: "Montserrat", sans-serif;
+    font-weight: 200;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background-color: #f9f9f9;
+  }
+  div {
+    font-size: 1.2rem;
+    line-height: 1.6rem;
+    max-width: 1000px;
+  }
+</style>

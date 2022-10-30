@@ -1,19 +1,20 @@
+body {
+  height: 100%;
+}
+
 a {
   font-family: "Inter", sans-serif;
   border-bottom: 1px solid #fcd303;
   color: black;
   text-decoration: none;
   padding: 2px;
-  -webkit-transition: 0.2s linear;
-  -moz-transition: 0.2s linear;
-  -o-transition: 0.2s linear;
-  transition: 0.2s linear;
+  -webkit-transition: background-color 0.2s linear, border-radius 0.2s linear;
+  -moz-transition: background-color 0.2s linear, border-radius 0.2s linear;
+  -o-transition: background-color 0.2s linear, border-radius 0.2s linear;
+  transition: background-color 0.2s linear, border-radius 0.2s linear;
 }
+
 a:hover {
   background-color: #fcd303;
   border-radius: 4px;
-}
-
-body {
-  height: 100%;
 }

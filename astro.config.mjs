@@ -1,4 +1,6 @@
 import { defineConfig } from "astro/config";
+import react from "@astrojs/react";
+
 // Full Astro Configuration API Documentation:
 // https://docs.astro.build/reference/configuration-reference
 
@@ -12,7 +14,7 @@ import { defineConfig } from "astro/config";
 // https://astro.build/config
 export default defineConfig( /** @type {import('astro').AstroUserConfig} */{
   // Comment out "renderers: []" to enable Astro's default component support.
-  integrations: [],
+  integrations: [react()],
   site: "https://www.mariosavarese.com/",
   build: {
     format: "file"
