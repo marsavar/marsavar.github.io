@@ -1,0 +1,1 @@
+import{r as a}from"./chunks/index.02661040.js";const l=()=>(a.exports.useEffect(()=>{(()=>{document.querySelectorAll("ul > li > a").forEach(t=>{t.getAttribute("href")===window.location.pathname&&t.classList.add("active")})})()},[]),null);export{l as NavBar};
