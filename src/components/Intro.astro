@@ -3,7 +3,7 @@ import Markdown from "@astrojs/markdown-component";
 import "../styles/global.css";
 
 const introUrl =
-  "https://raw.githubusercontent.com/MarSavar/MarSavar/main/README.md";
+  "https://raw.githubusercontent.com/marsavar/marsavar/main/README.md";
 const markdown = await fetch(introUrl);
 const markdownText = await markdown.text();
 const intro = markdownText
