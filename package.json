@@ -1,7 +1,10 @@
 {
-  "name": "@example/minimal",
+  "name": "marsavar",
   "version": "0.0.1",
   "private": true,
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "scripts": {
     "dev": "astro dev",
     "start": "astro dev",
@@ -9,10 +12,11 @@
     "preview": "astro preview"
   },
   "devDependencies": {
-    "@astrojs/markdown-component": "^1.0.1",
-    "@astrojs/react": "^1.2.2",
-    "astro": "^1.6.1",
-    "prettier-plugin-astro": "0.7.0",
-    "sass": "^1.55.0"
+    "@astrojs/react": "4.2.5",
+    "astro": "5.7.5",
+    "astro-remote": "0.3.4",
+    "prettier": "3.5.3",
+    "prettier-plugin-astro": "0.14.1",
+    "sass": "1.87.0"
   }
 }
