@@ -13,9 +13,7 @@ const intro = markdownText
 ---
 
 <div>
-  <Markdown>
-    {intro}
-  </Markdown>
+  <Markdown content={intro} />
 </div>
 
 <style>
@@ -24,13 +22,13 @@ const intro = markdownText
     font-size: 1.2rem;
     line-height: 1.6rem;
     max-width: 1000px;
-  }
 
-  li {
-    list-style-type: none;
-  }
+    ul {
+      padding-left: 0;
+    }
 
-  ul {
-    padding-left: 0;
+    li {
+      list-style-type: none;
+    }
   }
 </style>
