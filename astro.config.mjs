@@ -12,11 +12,13 @@ import react from "@astrojs/react";
 // @ts-check
 
 // https://astro.build/config
-export default defineConfig( /** @type {import('astro').AstroUserConfig} */{
-  // Comment out "renderers: []" to enable Astro's default component support.
-  integrations: [react()],
-  site: "https://www.mariosavarese.com/",
-  build: {
-    format: "file"
+export default defineConfig(
+  /** @type {import('astro').AstroUserConfig} */ {
+    // Comment out "renderers: []" to enable Astro's default component support.
+    integrations: [react()],
+    site: "https://www.mariosavarese.com/",
+    build: {
+      format: "preserve",
+    },
   }
-});
+);
