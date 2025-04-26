@@ -5,13 +5,17 @@
   {{ section.title }}
 </h1>
 <div class="blog-posts">
-    <ul>
-    {% for page in section.pages %}
-        <li>
-            <span class="date">{{ page.date | date(format="%Y-%m-%d") }}</span>
-            <a href="{{ page.permalink | safe }}">{{ page.title }}</a>
-        </li>
-    {% endfor %}
-    </ul>
+    {% if section.pages | length > 0 %}
+        <ul>
+        {% for page in section.pages %}
+            <li>
+                <span class="date">{{ page.date | date(format="%Y-%m-%d") }}</span>
+                <a href="{{ page.permalink | safe }}">{{ page.title }}</a>
+            </li>
+        {% endfor %}
+        </ul>
+    {% else %}
+        <div style="margin-top:4rem;"><p >No posts yet </p>
+    {% endif %}
 </div>
 {% endblock content %}
