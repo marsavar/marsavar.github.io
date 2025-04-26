@@ -33,6 +33,7 @@ h1 {
   text-transform: lowercase;
   margin: 0;
   margin-bottom: 6px;
+  margin-top: -3px;
   border-bottom: 6px solid #fcd303;
   display: inline-block;
   opacity: 1;
