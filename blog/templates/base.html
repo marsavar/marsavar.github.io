@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="/blog.css">
+  <title>blog</title>
+</head>
+
+<body>
+    <nav>
+      <ul>
+        <li><a href="/">Home</a></li>
+        <li><a href="/blog" class="active">Blog</a></li>
+        <li><a href="https://www.mariosavarese.com/projects">Projects</a></li>
+      </ul>
+    </nav>
+
+  <section class="section">
+    <div class="container">
+      {% block content %} {% endblock %}
+    </div>
+  </section>
+</body>
+
+</html>

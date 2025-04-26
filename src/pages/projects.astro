@@ -1,5 +1,5 @@
 ---
-import Projects, { Project } from "../components/Projects.astro";
+import ProjectList, { Project } from "../components/ProjectList.astro";
 import Head from "../components/Head.astro";
 import Header from "../components/Header.astro";
 import Footer from "../components/Footer.astro";
@@ -25,7 +25,7 @@ const projects: Project[] = [
   <Head />
   <body>
     <Header />
-    <Projects projects={projects} />
+    <ProjectList projects={projects} />
     <Footer />
   </body>
 </html>

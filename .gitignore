@@ -1,5 +1,8 @@
 # build output
 dist
+blog/public
+public/blog.css
+src/pages/blog
 
 # dev
 .astro

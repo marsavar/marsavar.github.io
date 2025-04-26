@@ -1,0 +1,127 @@
+body {
+  height: 100%;
+  font-family: Helvetica, sans-serif;
+  margin: 20px;
+  font-size: 1.2rem;
+  font-weight: 100;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #f9f9f9;
+}
+
+a {
+  border-bottom: 1px solid #fcd303;
+  color: black;
+  text-decoration: none;
+  padding: 2px;
+  -webkit-transition: background-color 0.2s linear, border-radius 0.2s linear;
+  -moz-transition: background-color 0.2s linear, border-radius 0.2s linear;
+  -o-transition: background-color 0.2s linear, border-radius 0.2s linear;
+  transition: background-color 0.2s linear, border-radius 0.2s linear;
+}
+
+a:hover {
+  background-color: #fcd303;
+  border-radius: 4px;
+}
+
+h1 {
+  font-family: Arial, Helvetica, sans-serif;
+  font-weight: 600;
+  font-size: 3rem;
+  letter-spacing: -1pt;
+  text-transform: lowercase;
+  margin: 0;
+  margin-bottom: 6px;
+  border-bottom: 6px solid #fcd303;
+  display: inline-block;
+  opacity: 1;
+}
+pre {
+  border-radius: 0.8em;
+  padding: 1rem;
+  overflow: auto;
+  white-space: pre-wrap; /* important */
+  line-height: 1.5em;
+  font-size: 0.8em;
+  width: 1000px;
+}
+/* The line numbers already provide some kind of left/right padding */
+pre[data-linenos] {
+  padding: 1rem 0;
+}
+pre table td {
+  padding: 0 0.4em;
+}
+/* The line number cells */
+pre table td:nth-of-type(1) {
+  text-align: center;
+  vertical-align: top;
+  user-select: none;
+}
+pre mark {
+  /* If you want your highlights to take the full width */
+  display: block;
+  /* The default background colour of a mark is bright yellow */
+  background-color: rgba(254, 252, 232, 0.9);
+}
+pre table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.blog-post {
+  font-size: 1.2rem;
+  line-height: 1.6rem;
+  max-width: 1000px;
+}
+
+.blog-post .date {
+  font-size: 1.1rem;
+}
+
+.blog-posts .date {
+  font-size: 1rem;
+}
+
+.blog-posts ul {
+  line-height: 1.6em;
+  padding-inline-start: 0.4em;
+}
+
+.blog-posts .date::after {
+  content: " ::";
+}
+
+.blog-posts li {
+  list-style: none; /* Remove default bullets */
+}
+
+.blog-posts li::before {
+  content: ""; /* The plus sign */
+  font-size: 0.7em; /* Make it small */
+  margin-right: 0.5em; /* Space between + and text */
+  vertical-align: middle; /* Align nicely with text */
+}
+
+nav ul {
+  padding-left: 0;
+  display: flex;
+  flex-wrap: nowrap;
+}
+nav a {
+  border-bottom: none;
+}
+nav li {
+  font-family: Arial, Helvetica, sans-serif;
+  font-weight: 600;
+  font-size: 1.3rem;
+  letter-spacing: -0.5pt;
+  text-transform: lowercase;
+  margin: 0 2rem 0 0;
+  display: inline-block;
+  transition: none;
+}
+.active {
+  border-bottom: 2px solid #fcd303;
+}

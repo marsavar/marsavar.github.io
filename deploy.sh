@@ -3,6 +3,11 @@
 # abort on errors
 set -e
 
+pushd blog
+cp static/blog.css ../public/blog.css
+zola build --output-dir ../src/pages/blog --force
+popd
+
 # build
 npm run build
 
