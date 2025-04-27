@@ -8,6 +8,8 @@ cp static/blog.css ../public/blog.css
 zola build --output-dir ../src/pages/blog --force
 popd
 
+sed -i '' 's|blog/sitemap.xml|sitemap.xml|' src/pages/blog/robots.txt
+
 cp src/pages/blog/sitemap.xml public/sitemap.xml
 cp src/pages/blog/robots.txt public/robots.txt
 
