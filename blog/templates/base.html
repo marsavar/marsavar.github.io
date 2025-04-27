@@ -1,20 +1,48 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-  <meta charset="utf-8">
+  <meta charset="UTF-8" />
   <link rel="stylesheet" href="/blog.css">
-  <title>blog</title>
+  <!-- Global site tag (gtag.js) - Google Analytics -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=UA-180275476-1"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag() {
+      dataLayer.push(arguments);
+    }
+    gtag('js', new Date());
+    gtag('config', 'UA-180275476-1');
+  </script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+  <link
+    rel="icon"
+    href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌫️</text></svg>"
+  />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  {% if page %}
+    <meta name="description" content="{{ page.description | default(value="Mario Savarese's personal blog") }}">
+    <meta name="keywords" content="{{ page.extra.keywords | default(value="Mario,Savarese,software,engineer,guardian,investigations,rust") }}">
+    <title>{{ page.title }}</title>
+  {% else %}
+    <meta name="description" content="Mario Savarese's personal blog">
+    <meta name="keywords" content="Mario,Savarese,software,engineer,guardian,investigations,rust">
+    <title>mario savarese</title>
+  {% endif %}
 </head>
 
 <body>
-    <nav>
-      <ul>
-        <li><a href="https://www.mariosavarese.com">Home</a></li>
-        <li><a href="/blog" class="active">Blog</a></li>
-        <li><a href="https://www.mariosavarese.com/projects">Projects</a></li>
-      </ul>
-    </nav>
+  <nav>
+    <ul>
+      <li><a href="https://www.mariosavarese.com">Home</a></li>
+      <li><a href="/blog" class="active">Blog</a></li>
+      <li><a href="https://www.mariosavarese.com/projects">Projects</a></li>
+    </ul>
+  </nav>
 
   <section class="section">
     <div class="container">

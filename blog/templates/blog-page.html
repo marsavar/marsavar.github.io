@@ -5,7 +5,24 @@
   {{ page.title }}
 </h1>
 <div class="blog-post">
-<strong class="date">{{ page.date }}</strong>
+<span class="date">{{ page.date }}</span>
+<section>
 {{ page.content | safe }}
+</section>
 </div>
+
+{% set tags = get_taxonomy(kind="tags") %}
+{% if tags %}
+<div class="tags">
+    <ul>
+  {% for tag in tags.items %}
+    <li><a href="{{ tag.permalink }}"># {{ tag.name }}</a></li>
+  {% endfor %}
+    </ul>
+</div>
+{% else %}
+  <p>No tags found.</p>
+{% endif %}
+
+
 {% endblock content %}

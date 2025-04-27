@@ -75,34 +75,33 @@ pre table {
   font-size: 1.2rem;
   line-height: 1.6rem;
   max-width: 1000px;
+  margin-top: 4rem;
 }
 
 .blog-post .date {
-  font-size: 1.1rem;
+  font-size: 1.2rem;
 }
 
-.blog-posts .date {
-  font-size: 1rem;
+.blog-posts {
+  margin-top: 4rem;
+  max-width: 1000px;
 }
-
 .blog-posts ul {
   line-height: 1.6em;
-  padding-inline-start: 0.4em;
-}
-
-.blog-posts .date::after {
-  content: " ::";
+  padding-inline-start: 0;
 }
 
 .blog-posts li {
-  list-style: none; /* Remove default bullets */
+  list-style: none;
 }
 
-.blog-posts li::before {
-  content: ""; /* The plus sign */
-  font-size: 0.7em; /* Make it small */
-  margin-right: 0.5em; /* Space between + and text */
-  vertical-align: middle; /* Align nicely with text */
+.individual-blog-post {
+  line-height: 1.6rem;
+  margin-bottom: 2rem;
+}
+
+.reading-time {
+  font-size: 0.9em;
 }
 
 nav ul {
@@ -125,4 +124,27 @@ nav li {
 }
 .active {
   border-bottom: 2px solid #fcd303;
+}
+
+.tags {
+  padding-top: 3rem;
+  padding-left: 0;
+  display: flex;
+  flex-wrap: nowrap;
+  max-width: 1000px;
+  font-size: 1.1rem;
+}
+
+.tags ul {
+  list-style-type: none;
+  margin: 0;
+  padding: 0;
+}
+.tags li {
+  float: left;
+  margin-right: 24px;
+  text-transform: lowercase;
+}
+.tags svg {
+  vertical-align: middle;
 }
