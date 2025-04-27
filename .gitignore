@@ -1,7 +1,7 @@
 # build output
 dist
 blog/public
-public/blog.css
+public
 src/pages/blog
 
 # dev

@@ -8,6 +8,9 @@ cp static/blog.css ../public/blog.css
 zola build --output-dir ../src/pages/blog --force
 popd
 
+cp src/pages/blog/sitemap.xml public/sitemap.xml
+cp src/pages/blog/robots.txt public/robots.txt
+
 # build
 npm run build
 
