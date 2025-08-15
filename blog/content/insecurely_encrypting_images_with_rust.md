@@ -331,7 +331,7 @@ It also provides *authenticated encryption*, which is an encryption scheme that 
 
 This makes it an ideal candidate for a large number of use cases. Chances are you've been using AES-GCM without even realising!
 AWS, for example, uses it to [encrypt S3 files](https://docs.aws.amazon.com/AmazonS3/latest/userguide/UsingServerSideEncryption.html) at rest, and it's also commonly used in Wi-Fi communication protocols.
-Generally speaking, AES is so ubiquitous that modern CPUs include special instructions to perform its operations *really quickly*.
+Generally speaking, AES is so ubiquitous that modern CPUs include special instructions to perform its operations as quickly and efficiently as possible.
 
 Let's put it to the test.
 AES-GCM requires a *nonce* (number used once) to produce a unique keystream. We'll also need to keep track of the nonce for decryption purposes, so let's change the structure of our PPM header:
