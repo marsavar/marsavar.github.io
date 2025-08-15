@@ -12,7 +12,7 @@ It includes a simple Rust program that encrypts PPM images using the AES block c
 
 ### How does encryption work?
 In the simplest possible terms, encryption is achieved by taking an input (in our case an image), applying some operations to it,
-and producing an output that is indistinguishable from the original input. Crucially, **the output must be reversible**, so that the original input
+and producing an output that differs from the original input. Crucially, **the output must be reversible**, so that the original input
 can be recovered.
 
 Scrambling the original input to produce an encrypted output is achieved through a *key*, which is a sequence of bytes.
@@ -48,7 +48,7 @@ until the plaintext is fully exhausted.
 ```
 
 Can you see why this is problematic?
-One of the security goals of encryption is indistiguishability, but encrypting blocks sequentially breaks that goal, because it
+One of the security goals of encryption is indistiguishability from random data, but encrypting blocks sequentially breaks that goal, because it
 reveals patterns from the original plaintext. Think of it this way: if the same block is encrypted twice, it will produce
 exactly the same output. You may not figure out what that means, but you'll still get enough details about the plaintext which
 you were trying to hide in the first place.
