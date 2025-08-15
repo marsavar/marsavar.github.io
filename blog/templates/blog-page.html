@@ -1,28 +1,40 @@
-{% extends "base.html" %}
-
-{% block content %}
-<h1>
-  {{ page.title }}
-</h1>
+{% extends "base.html" %} {% block content %}
+<h1>{{ page.title }}</h1>
 <div class="blog-post">
-<span class="date">{{ page.date }}</span>
-<section>
-{{ page.content | safe }}
-</section>
+  <div style="display: flex; align-items: center">
+    <span class="date">{{ page.date | date(format="%Y-%m-%d") }}</span>
+    <svg
+      width="18px"
+      height="18px"
+      stroke-width="1.5"
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      color="#000000"
+    >
+      <path
+        d="M9 6L15 12L9 18"
+        stroke="#000000"
+        stroke-width="1.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      ></path>
+    </svg>
+    <span style="margin-left: 0.4rem"
+      >{{ page.reading_time }}-min reading time</span
+    >
+  </div>
+  <section>{{ page.content | safe }}</section>
 </div>
 
-{% set tags = get_taxonomy(kind="tags") %}
-{% if tags %}
+{% set tags = get_taxonomy(kind="tags") %} {% if tags %}
 <div class="tags">
-    <ul>
-  {% for tag in tags.items %}
+  <ul>
+    {% for tag in tags.items %}
     <li><a href="{{ tag.permalink }}"># {{ tag.name }}</a></li>
-  {% endfor %}
-    </ul>
+    {% endfor %}
+  </ul>
 </div>
 {% else %}
-  <p>No tags found.</p>
-{% endif %}
-
-
-{% endblock content %}
+<p>No tags found.</p>
+{% endif %} {% endblock content %}

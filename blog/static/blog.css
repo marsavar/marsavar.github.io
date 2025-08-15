@@ -14,10 +14,18 @@ a {
   color: black;
   text-decoration: none;
   padding: 2px;
-  -webkit-transition: background-color 0.2s linear, border-radius 0.2s linear;
-  -moz-transition: background-color 0.2s linear, border-radius 0.2s linear;
-  -o-transition: background-color 0.2s linear, border-radius 0.2s linear;
-  transition: background-color 0.2s linear, border-radius 0.2s linear;
+  -webkit-transition:
+    background-color 0.2s linear,
+    border-radius 0.2s linear;
+  -moz-transition:
+    background-color 0.2s linear,
+    border-radius 0.2s linear;
+  -o-transition:
+    background-color 0.2s linear,
+    border-radius 0.2s linear;
+  transition:
+    background-color 0.2s linear,
+    border-radius 0.2s linear;
 }
 
 a:hover {
@@ -30,7 +38,6 @@ h1 {
   font-weight: 600;
   font-size: 3rem;
   letter-spacing: -1pt;
-  text-transform: lowercase;
   margin: 0;
   margin-top: -3px;
   margin-bottom: 6px;
@@ -38,6 +45,20 @@ h1 {
   display: inline-block;
   opacity: 1;
 }
+
+h3 {
+  font-family: Arial, Helvetica, sans-serif;
+  font-weight: 600;
+  font-size: 1.4rem;
+  letter-spacing: -0.5pt;
+  margin: 0;
+  margin-top: -3px;
+  margin-bottom: 6px;
+  border-bottom: 2px solid #fcd303;
+  display: inline-block;
+  opacity: 1;
+}
+
 pre {
   border-radius: 0.8em;
   padding: 1rem;
@@ -100,8 +121,8 @@ pre table {
   margin-bottom: 2rem;
 }
 
-.reading-time {
-  font-size: 0.9em;
+.read-time {
+  margin-left: 1em;
 }
 
 nav ul {
@@ -147,4 +168,11 @@ nav li {
 }
 .tags svg {
   vertical-align: middle;
+}
+
+code:not(pre code) {
+  background-color: #e0e0e0;
+  padding: 2px;
+  border-radius: 4px;
+  font-size: 1rem;
 }

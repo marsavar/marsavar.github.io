@@ -4,7 +4,7 @@
 set -e
 
 pushd blog
-cp static/blog.css ../public/blog.css
+cp -a static/* ../public/
 zola build --output-dir ../src/pages/blog --force
 popd
 
