@@ -1,7 +1,7 @@
 +++
 title = "Insecurely encrypting images with Rust"
 date = "2025-08-15"
-description = "fake description"
+description = "This article demonstrates how a block encryption cipher can still be insecure if it uses an insecure mode of operation."
 [extra]
 keywords = "rust,symmetric,encryption,ppm,aes,gcm,ecb"
 [taxonomies]
@@ -389,7 +389,7 @@ impl Ppm {
 ### Conclusions
 The image encrypted with AES-GCM bears no resemblance to the original input. The big white, black, and orange blobs
 of colour are clearly distinguishable when using AES in ECB mode, despite having used a state-of-the-art
-encryption key derivation function. Ultimately, ECB *transforms the blocks from the original input in an extremely
+encryption key derivation function. Ultimately, ECB transforms the blocks from the original input in an extremely
 predictable way, making the encryption key almost laughably irrelevant.
 
 On the other hand, it is impossible to spot any element of the original image in the GCM output: **the penguin disappeared**.
