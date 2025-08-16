@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+    <url>
+        <loc>https://www.mariosavarese.com/blog/</loc>
+    </url>
+    <url>
+        <loc>https://www.mariosavarese.com/blog/insecurely-encrypting-images-with-rust/</loc>
+        <lastmod>2025-08-15</lastmod>
+    </url>
+    <url>
+        <loc>https://www.mariosavarese.com/blog/tags/</loc>
+    </url>
+    <url>
+        <loc>https://www.mariosavarese.com/blog/tags/cryptography/</loc>
+    </url>
+    <url>
+        <loc>https://www.mariosavarese.com/blog/tags/rust/</loc>
+    </url>
+</urlset>
