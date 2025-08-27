@@ -10,8 +10,8 @@
     href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌫️</text></svg>"
   />
   {% block rss %}
-    <link rel="alternate" type="application/rss+xml" title="RSS" href="{{ get_url(path="rss.xml", trailing_slash=false) }}">
-    <link rel="alternate" type="application/atom+xml" title="Atom" href="{{ get_url(path="atom.xml", trailing_slash=false) }}">
+    <link rel="alternate" type="application/rss+xml" title="RSS" href="{{ get_url(path="blog/rss.xml", trailing_slash=false) }}">
+    <link rel="alternate" type="application/atom+xml" title="Atom" href="{{ get_url(path="blog/atom.xml", trailing_slash=false) }}">
   {% endblock %}
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   {% if page %}
