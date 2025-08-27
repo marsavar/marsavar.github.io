@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% block rss %}
-  {% set rss_path = "tags/" ~ term.name ~ "/rss.xml" %}
+  {% set rss_path = "blog/tags/" ~ term.name ~ "/rss.xml" %}
   <link rel="alternate" type="application/rss+xml" title="RSS" href="{{ get_url(path=rss_path, trailing_slash=false) }}">
-  {% set atom_path = "tags/" ~ term.name ~ "/atom.xml" %}
+  {% set atom_path = "blog/tags/" ~ term.name ~ "/atom.xml" %}
   <link rel="alternate" type="application/atom+xml" title="Atom" href="{{ get_url(path=atom_path, trailing_slash=false) }}">
 {% endblock rss %}
 {% block content %}
