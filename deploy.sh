@@ -11,14 +11,16 @@ popd
 sed -i '' 's|blog/sitemap.xml|sitemap.xml|' src/pages/blog/robots.txt
 
 cp src/pages/blog/sitemap.xml public/sitemap.xml
+
+mkdir -p public/blog
 cp src/pages/blog/robots.txt public/robots.txt
-cp src/pages/blog/atom.xml public/atom.xml
+cp src/pages/blog/*.xml public/blog/
 
 for d in src/pages/blog/tags/*/; do
-  if [ -f "$d/atom.xml" ]; then
-    mkdir -p "public/tags/$(basename "$d")"
-    cp "$d/atom.xml" "public/tags/$(basename "$d")/atom.xml"
-  fi
+    if ls "$d"/*.xml >/dev/null 2>&1; then
+        mkdir -p "public/blog/tags/$(basename "$d")"
+        cp "$d"/*.xml "public/blog/tags/$(basename "$d")/"
+    fi
 done
 
 # build
