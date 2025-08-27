@@ -9,6 +9,10 @@
     rel="icon"
     href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌫️</text></svg>"
   />
+  {% block rss %}
+    <link rel="alternate" type="application/rss+xml" title="RSS" href="{{ get_url(path="rss.xml", trailing_slash=false) }}">
+    <link rel="alternate" type="application/atom+xml" title="Atom" href="{{ get_url(path="atom.xml", trailing_slash=false) }}">
+  {% endblock %}
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   {% if page %}
     <meta name="description" content="{{ page.description | default(value="Mario Savarese's personal blog") }}">
@@ -35,6 +39,14 @@
     <div class="container">
       {% block content %} {% endblock %}
     </div>
+  </section>
+  <section>
+  <div class="rss">
+    <ul>
+      <li><a href="/rss.xml">RSS</a></li>
+      <li><a href="/atom.xml">Atom</a></li>
+    </ul>
+  </div>
   </section>
 </body>
 

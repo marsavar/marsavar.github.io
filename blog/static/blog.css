@@ -63,14 +63,17 @@ h3 {
   opacity: 1;
 }
 
+.container {
+  max-width: 54rem;
+}
+
 pre {
   border-radius: 0.8em;
   padding: 1rem;
   overflow: auto;
-  white-space: pre-wrap; /* important */
+  white-space: pre-wrap;
   line-height: 1.5em;
   font-size: 0.8em;
-  width: 1000px;
 }
 /* The line numbers already provide some kind of left/right padding */
 pre[data-linenos] {
@@ -79,32 +82,27 @@ pre[data-linenos] {
 pre table td {
   padding: 0 0.4em;
 }
-/* The line number cells */
+
 pre table td:nth-of-type(1) {
   text-align: center;
   vertical-align: top;
   user-select: none;
 }
+
 pre mark {
-  /* If you want your highlights to take the full width */
   display: block;
-  /* The default background colour of a mark is bright yellow */
   background-color: rgba(254, 252, 232, 0.9);
 }
+
 pre table {
   width: 100%;
   border-collapse: collapse;
 }
 
 .blog-post {
-  font-size: 1.2rem;
+  font-size: 1.1rem;
   line-height: 1.6rem;
-  max-width: 1000px;
   margin-top: 4rem;
-}
-
-.blog-post .date {
-  font-size: 1.2rem;
 }
 
 .blog-posts {
@@ -152,7 +150,7 @@ nav li {
 }
 
 .tags {
-  padding-top: 3rem;
+  padding-top: 1.4rem;
   padding-left: 0;
   display: flex;
   flex-wrap: nowrap;
@@ -165,13 +163,38 @@ nav li {
   margin: 0;
   padding: 0;
 }
-.tags li {
-  float: left;
-  margin-right: 24px;
+
+.tags ul:first-child::before {
+  content: "Tags:";
+  margin-right: 0.4rem;
   text-transform: lowercase;
 }
-.tags svg {
-  vertical-align: middle;
+
+.tags li {
+  display: inline-block;
+  margin-right: 0.6rem;
+  text-transform: lowercase;
+}
+
+.rss {
+  padding-top: 2rem;
+  padding-left: 0;
+  display: flex;
+  flex-wrap: nowrap;
+  max-width: 1000px;
+  font-size: 1.1rem;
+}
+
+.rss ul {
+  list-style-type: none;
+  margin: 0;
+  padding: 0;
+}
+
+.rss li {
+  display: inline-block;
+  margin-right: 0.6rem;
+  text-transform: lowercase;
 }
 
 code:not(pre code) {
