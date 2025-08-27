@@ -12,6 +12,14 @@ sed -i '' 's|blog/sitemap.xml|sitemap.xml|' src/pages/blog/robots.txt
 
 cp src/pages/blog/sitemap.xml public/sitemap.xml
 cp src/pages/blog/robots.txt public/robots.txt
+cp src/pages/blog/atom.xml public/atom.xml
+
+for d in src/pages/blog/tags/*/; do
+  if [ -f "$d/atom.xml" ]; then
+    mkdir -p "public/tags/$(basename "$d")"
+    cp "$d/atom.xml" "public/tags/$(basename "$d")/atom.xml"
+  fi
+done
 
 # build
 npm run build
