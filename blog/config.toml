@@ -14,5 +14,7 @@ taxonomies = [{ name = "tags", feed = true }]
 highlight_code = true
 highlight_theme = "Tomorrow"
 
+generate_feeds = true
+
 [extra]
 # Put all your custom variables here

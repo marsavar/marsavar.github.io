@@ -1,4 +1,5 @@
 +++
+authors = ["Mario Savarese"]
 title = "Insecurely encrypting images with Rust"
 date = "2025-08-15"
 description = "This article demonstrates how a block encryption cipher can still be insecure if it uses an insecure mode of operation."
@@ -10,13 +11,13 @@ tags = ["rust", "cryptography"]
 This article demonstrates how a block encryption cipher can still be insecure if it uses an insecure mode of operation.
 It includes a simple Rust program that encrypts PPM images using the AES block cipher with different modes of operation.
 
-### How does encryption work?
+### A primer on encryption
 In the simplest possible terms, encryption is achieved by taking an input (in our case an image), applying some operations to it,
-and producing an output that differs from the original input. Crucially, **the output must be reversible**, so that the original input
-can be recovered.
+and producing an output that differs from the original input, with the purpose of protecting data from prying eyes.
+Crucially, **the output must be reversible**, so that the original input can be recovered.
 
 Scrambling the original input to produce an encrypted output is achieved through a *key*, which is a sequence of bytes.
-In the case of symmetric encryption, the output can only be decrypted using the same key that was used to encrypt it.
+In the case of symmetric encryption, the output can only be decrypted by using the same key that was used to encrypt it.
 
 This is different from *asymmetric encryption* (also known as public-key encryption), where the key used for *encryption*
 is different from the key used for *decryption*. The modern internet relies on asymmetric encryption: as a matter of fact,
@@ -28,13 +29,13 @@ For the purpose of this blog post, I'll be focusing on symmetric encryption.
 ### Block ciphers and modes of operation
 [Aumasson](https://nostarch.com/serious-cryptography-2nd-edition) defines a block cipher as consisting of an encryption algorithm `E` which takes a key `K` and a plaintext `P` as its input, and produces a ciphertext `C`. That is to say, encryption is expressed as `C = E(K, P)`, and decryption as its inverse, i.e. `P = D(K, C)`
 
-A block cipher is so named because it operates on fix-sized blocks. [AES](https://www.nist.gov/publications/advanced-encryption-standard-aes) (Advanced Encryption Standard), which is the most popular block cipher, processes the data in blocks of 16 bytes at a time. If the input length is not divisible by 16, the remainder is usually padded.
+A block cipher is so named because it operates on fix-sized blocks. [AES](https://www.nist.gov/publications/advanced-encryption-standard-aes) (Advanced Encryption Standard) is the most popular block cipher, and it processes data in blocks of 16 bytes at a time. If the input length is not divisible by 16, the remainder is usually padded.
 
 How should the cipher behave when encrypting some arbitrarily sized input? This is when *modes of operation* come into play. A mode of operation
 provides instructions on what to do on long sequences of input.
 
 The most intuitive, and probably the most problematic (we'll see why in a bit), is the Electronic Code Book (**ECB**) mode of operation.
-ECB simply applies the encryption algorithm to a block, then procees to applying it to the next block and so on and so forth,
+ECB simply applies the encryption algorithm to a block, then proceeds to applying it to the next block and so on,
 until the plaintext is fully exhausted.
 
 ```
@@ -47,15 +48,12 @@ until the plaintext is fully exhausted.
          Ciphertext            Ciphertext            Ciphertext
 ```
 
-Can you see why this is problematic?
-One of the security goals of encryption is indistiguishability from random data, but encrypting blocks sequentially breaks that goal, because it
-reveals patterns from the original plaintext. Think of it this way: if the same block is encrypted twice, it will produce
+One of the security goals of encryption is indistiguishability from random data, but encrypting blocks is fundamentally at odds with that goal, because it reveals patterns from the original plaintext. Think of it this way: if the same block is encrypted twice, it will produce
 exactly the same output. You may not figure out what that means, but you'll still get enough details about the plaintext which
 you were trying to hide in the first place.
 
 The most striking example that has been used over the years to drive home this point is the infamous ECB Penguin: even after
 encrypting an image of the Linux mascot using AES-ECB, you can still see the penguin!
-
 
 |Original image|Encrypted with AES-ECB|
 |---|---|
@@ -63,7 +61,6 @@ encrypting an image of the Linux mascot using AES-ECB, you can still see the pen
 
 I decided to write a small Rust program to achieve the same result and demonstrate that even using a 256-bit long key
 derived with the state-of-the-art Argon2 password-hashing algorithm, ECB still proves to be insecure.
-
 
 ### The PPM format
 Filippo Valsorda cleverly [pointed out](https://words.filippo.io/the-ecb-penguin/) that the easiest image format to manipulate
@@ -86,7 +83,7 @@ P3  # This is the magic number denoting a plain PPM file
 15  0 15    0  0  0    0  0  0    0  0  0
 ```
 
-Conveniently, the format supports `#` comments, which will come in handy later!
+Conveniently, the format supports `#` comments, which will come in handy later.
 
 ### Let's get parsing
 The idea is to leave the header portion of the file intact, and to encrypt only the actual data.
@@ -143,23 +140,8 @@ impl PpmHeader {
 
         let magic_number =
             MagicNumber::from_str(tokens.next().ok_or_else(|| eyre!("Missing identifier"))?)?;
-        let width = tokens
-            .next()
-            .ok_or_else(|| eyre!("Missing width"))?
-            .parse::<usize>()?;
-        let height = tokens
-            .next()
-            .ok_or_else(|| eyre!("Missing height"))?
-            .parse::<usize>()?;
-        let max_val = tokens
-            .next()
-            .ok_or_else(|| eyre!("Missing max_val"))?
-            .parse::<usize>()?;
 
-        let end = text
-            .find(&max_val.to_string())
-            .ok_or_else(|| eyre!("Could not find max_val in header"))?
-            + max_val.to_string().len();
+        // More parsing...
 
         Ok(PpmHeader {
             magic_number,
@@ -225,7 +207,7 @@ Given how insecure ECB is, you may be tempted to think that using a really stron
 function, might provide enough security. You'd be sorely mistaken.
 
 Let's see why that is the case.
-I've picked [Argon2](https://en.wikipedia.org/wiki/Argon2) for this example, which is widely considered one of the best password-hashing functions due to its properties (memory hardness, among others). It requires a salt as part of the input for security reasons, so that two encryption keys generated with Argon2 using the same passphrase, but different salts, result in different outputs.
+I've picked [Argon2](https://en.wikipedia.org/wiki/Argon2) for this example, which is widely considered one of the best password-hashing functions due to its properties (memory hardness, among others). It requires a salt as part of the input, so that two encryption keys derived from the same passphrase (but crucially, from two different salts) result in different outputs.
 
 ```rust
 // Create a 16-byte-long buffer, which is Argon2's recommended length for a salt
@@ -236,10 +218,10 @@ OsRng.fill_bytes(&mut salt);
 // Create a 32-byte buffer to use as the encryption key
 let mut output_key_material = [0u8; 32];
 // ...and fill it with bytes created by the Argon2 function using
-// "the frost... sometimes it makes the blade stick" as the passphrase,
+// "i-have-eaten-the-plums-that-were-in-the-icebox" as the passphrase,
 // which is arguably more memorable than a sequence of 32 random-looking bytes
 Argon2::default()
-    .hash_password_into(b"the frost... sometimes it makes the blade stick", &salt, &mut output_key_material)
+    .hash_password_into(b"i-have-eaten-the-plums-that-were-in-the-icebox", &salt, &mut output_key_material)
     .unwrap();
 ```
 
@@ -289,11 +271,12 @@ And here is the result...
 
 Even with a 256-bit key generated with Argon2, **AES-ECB is still insecure. You can stil see the penguin**.
 
-### What about decrypting?
+### What about decryption?
+We could stop here, but let's write a decryption function for the sake of completeness.
 
-You will recall that a successful decryption can only occur if the same encryption key is used for decrypting.
+You will recall that a successful decryption can only occur if the same encryption key is used for decryption.
 However, the Argon2-derived key was generated with a random salt, and the same salt **must** be used in order to produce the same key.
-This means the salt must be stored *somewhere*. What better place than the PPM header itself?
+This means the salt must be stored *somewhere*. What better place than the PPM file header itself?
 
 The PPM format conveniently allows comments in the header: anything following the `#` character is treated as a comment.
 We can leverage that to our advantage by storing the salt in the header, and updating the Rust code accordingly when reading from/writing to disk.
@@ -325,11 +308,11 @@ P6
 We can use GCM instead.
 GCM stands for [Galois/Counter Mode](https://en.wikipedia.org/wiki/Galois/Counter_Mode), and effectively turns the block cipher into a [stream cipher](https://en.wikipedia.org/wiki/Stream_cipher).
 
-The math behind GCM is very complicated, but it comes with extremely useful properties: it uses a counter internally, meaning that the same block encrypted twice will produce a different result (this solves the pattern leakage issue that ECB suffers from).
+The math behind GCM is very complicated, but it comes with extremely useful properties: it uses a counter internally, meaning that the same block encrypted twice will produce a different result. This conveniently solves the pattern leakage issue that ECB suffers from.
 
-It also provides *authenticated encryption*, which is an encryption scheme that makes the ciphertext tamper-resistant. It achieves this by producing an authentication tag, so that the integrity of the message is also verified at decryption time. In other words, if any bytes of the ciphertext bytes were altered, decryption would simply fail.
+It also provides *authenticated encryption*, which is an encryption scheme that makes the ciphertext tamper-resistant. It achieves this by producing an authentication tag, so that the integrity of the message is also verified during decryption. In other words, if any bytes of the ciphertext bytes were altered, decryption would not succeed.
 
-This makes it an ideal candidate for a large number of use cases. Chances are you've been using AES-GCM without even realising!
+This makes it an ideal candidate for a large number of use cases. Chances are you've been using AES-GCM without even realising.
 AWS, for example, uses it to [encrypt S3 files](https://docs.aws.amazon.com/AmazonS3/latest/userguide/UsingServerSideEncryption.html) at rest, and it's also commonly used in Wi-Fi communication protocols.
 Generally speaking, AES is so ubiquitous that modern CPUs include special instructions to perform its operations as quickly and efficiently as possible.
 
@@ -395,18 +378,17 @@ predictable way, making the encryption key almost laughably irrelevant.
 On the other hand, it is impossible to spot any element of the original image in the GCM output: **the penguin disappeared**.
 
 ### Notes
-The [Tux.ppm](/images/Tux.ppm) image and the [CLI source code](https://gist.github.com/marsavar/76f672fd6151da23dbe7de1161370dda) are available for download,
-if you want to play around.
+The [Tux.ppm](/images/Tux.ppm) image and the [CLI source code](https://gist.github.com/marsavar/76f672fd6151da23dbe7de1161370dda) are available for download.
 
-Below are some extra integrity checks:
+Below are some extra checks validating the integrity of the files after the encryption/decryption round trip.
 ```bash
-# Round-trip with AES-ECB produces the same digest
+# Round trip with AES-ECB produces the same digest
 cargo run -- encrypt --file Tux.ppm --key sunshine123 --mode ecb
 cargo run -- decrypt --file Tux.Ecb.67438efc.encrypted.ppm --key sunshine123 --mode ecb
 sha256 Tux.ppm # 6fb56d4eb39e35603b525e9dd3e3cd33a16e34f32bd1196ae47402df65a50ab0
 sha256 Tux.Ecb.67438efc.decrypted.ppm # 6fb56d4eb39e35603b525e9dd3e3cd33a16e34f32bd1196ae47402df65a50ab0
 
-# Round-trip with AES-GCM also produces the same digest
+# Round trip with AES-GCM also produces the same digest
 cargo run -- encrypt --file Tux.ppm --key sunshine123 --mode gcm
 cargo run -- decrypt --file Tux.Gcm.f56ef398.encrypted.ppm --key sunshine123 --mode gcm
 sha256 Tux.Gcm.f56ef398.decrypted.ppm # 6fb56d4eb39e35603b525e9dd3e3cd33a16e34f32bd1196ae47402df65a50ab0
