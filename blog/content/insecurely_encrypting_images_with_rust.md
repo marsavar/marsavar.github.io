@@ -1,8 +1,8 @@
 +++
-authors = ["Mario Savarese"]
 title = "Insecurely encrypting images with Rust"
 date = "2025-08-15"
 description = "This article demonstrates how a block encryption cipher can still be insecure if it uses an insecure mode of operation."
+summary = "This article demonstrates how a block encryption cipher can still be insecure if it uses an insecure mode of operation."
 [extra]
 keywords = "rust,symmetric,encryption,ppm,aes,gcm,ecb"
 [taxonomies]

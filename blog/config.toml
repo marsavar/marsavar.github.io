@@ -9,6 +9,10 @@ build_search_index = false
 
 taxonomies = [{ name = "tags", feed = true }]
 
+# Feeds
+author = "Mario Savarese"
+title = "Mario Savarese"
+description = "Mario Savarese's blog"
 generate_feeds = true
 feed_filenames = ["atom.xml", "rss.xml"]
 
