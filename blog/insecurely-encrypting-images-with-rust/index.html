@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <link rel="stylesheet" href="/blog.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="icon" href="/blog/fog32x32.png" type="image/png">
+  
+    <link rel="alternate" type="application/rss+xml" title="RSS" href="https://www.mariosavarese.com/blog/rss.xml">
+    <link rel="alternate" type="application/atom+xml" title="Atom" href="https://www.mariosavarese.com/blog/atom.xml">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  
+    <meta name="description" content="This article demonstrates how a block encryption cipher can still be insecure if it uses an insecure mode of operation.">
+    <meta name="keywords" content="rust,symmetric,encryption,ppm,aes,gcm,ecb">
+    <title>Insecurely encrypting images with Rust</title>
+  
+  <script defer data-domain="mariosavarese.com" src="https://plausible.io/js/script.js"></script>
+</head>
+
+<body>
+  <nav>
+    <ul>
+      <li><a href="https://www.mariosavarese.com">Home</a></li>
+      <li><a href="/blog" class="active">Blog</a></li>
+      <li><a href="https://www.mariosavarese.com/projects">Projects</a></li>
+    </ul>
+  </nav>
+
+  <section class="section">
+    <div class="container">
+      
+<h1>Insecurely encrypting images with Rust</h1>
+<div class="blog-post">
+  <div style="display: flex; align-items: center">
+    <span class="date">2025-08-15</span>
+    <svg
+      width="18px"
+      height="18px"
+      stroke-width="1.5"
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      color="#000000"
+    >
+      <path
+        d="M9 6L15 12L9 18"
+        stroke="#000000"
+        stroke-width="1.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      ></path>
+    </svg>
+    <span style="margin-left: 0.4rem"
+      >9-min reading time</span
+    >
+  </div>
+  <section><p>This article demonstrates how a block encryption cipher can still be insecure if it uses an insecure mode of operation.
+It includes a simple Rust program that encrypts PPM images using the AES block cipher with different modes of operation.</p>
+<h3 id="a-primer-on-encryption">A primer on encryption</h3>
+<p>In the simplest possible terms, encryption is achieved by taking an input (in our case an image), applying some operations to it,
+and producing an output that differs from the original input, with the purpose of protecting data from prying eyes.
+Crucially, <strong>the output must be reversible</strong>, so that the original input can be recovered.</p>
+<p>Scrambling the original input to produce an encrypted output is achieved through a <em>key</em>, which is a sequence of bytes.
+In the case of symmetric encryption, the output can only be decrypted by using the same key that was used to encrypt it.</p>
+<p>This is different from <em>asymmetric encryption</em> (also known as public-key encryption), where the key used for <em>encryption</em>
+is different from the key used for <em>decryption</em>. The modern internet relies on asymmetric encryption: as a matter of fact,
+you're reading this blog post over HTTPS, which means your browser and the server participated
+in a key exhange mechanism. That exchange produced a shared symmetric key which was then used to encrypt the HTTP traffic.</p>
+<p>For the purpose of this blog post, I'll be focusing on symmetric encryption.</p>
+<h3 id="block-ciphers-and-modes-of-operation">Block ciphers and modes of operation</h3>
+<p><a href="https://nostarch.com/serious-cryptography-2nd-edition">Aumasson</a> defines a block cipher as consisting of an encryption algorithm <code>E</code> which takes a key <code>K</code> and a plaintext <code>P</code> as its input, and produces a ciphertext <code>C</code>. That is to say, encryption is expressed as <code>C = E(K, P)</code>, and decryption as its inverse, i.e. <code>P = D(K, C)</code></p>
+<p>A block cipher is so named because it operates on fix-sized blocks. <a href="https://www.nist.gov/publications/advanced-encryption-standard-aes">AES</a> (Advanced Encryption Standard) is the most popular block cipher, and it processes data in blocks of 16 bytes at a time. If the input length is not divisible by 16, the remainder is usually padded.</p>
+<p>How should the cipher behave when encrypting some arbitrarily sized input? This is when <em>modes of operation</em> come into play. A mode of operation
+provides instructions on what to do on long sequences of input.</p>
+<p>The most intuitive, and probably the most problematic (we'll see why in a bit), is the Electronic Code Book (<strong>ECB</strong>) mode of operation.
+ECB simply applies the encryption algorithm to a block, then proceeds to applying it to the next block and so on,
+until the plaintext is fully exhausted.</p>
+<pre style="background-color:#ffffff;color:#4d4d4c;"><code><span>         Plaintext             Plaintext             Plaintext
+</span><span>             ↓                     ↓                     ↓
+</span><span>      +-------------+       +-------------+       +-------------+
+</span><span> Key →|     AES     |  Key →|     AES     |  Key →|     AES     |
+</span><span>      +-------------+       +-------------+       +-------------+
+</span><span>             ↓                     ↓                     ↓
+</span><span>         Ciphertext            Ciphertext            Ciphertext
+</span></code></pre>
+<p>One of the security goals of encryption is indistiguishability from random data, but encrypting blocks is fundamentally at odds with that goal, because it reveals patterns from the original plaintext. Think of it this way: if the same block is encrypted twice, it will produce
+exactly the same output. You may not figure out what that means, but you'll still get enough details about the plaintext which
+you were trying to hide in the first place.</p>
+<p>The most striking example that has been used over the years to drive home this point is the infamous ECB Penguin: even after
+encrypting an image of the Linux mascot using AES-ECB, you can still see the penguin!</p>
+<table><thead><tr><th>Original image</th><th>Encrypted with AES-ECB</th></tr></thead><tbody>
+<tr><td><img src="/images/Tux.png"></td><td><img src="/images/Tux.encrypted.png"></td></tr>
+</tbody></table>
+<p>I decided to write a small Rust program to achieve the same result and demonstrate that even using a 256-bit long key
+derived with the state-of-the-art Argon2 password-hashing algorithm, ECB still proves to be insecure.</p>
+<h3 id="the-ppm-format">The PPM format</h3>
+<p>Filippo Valsorda cleverly <a href="https://words.filippo.io/the-ecb-penguin/">pointed out</a> that the easiest image format to manipulate
+to achieve this is <a href="https://netpbm.sourceforge.net/doc/ppm.html">PPM</a>, or Portable Pixel Map. This is because the format is
+very easy to parse, and only consists of the following:</p>
+<ul>
+<li>A magic number at the beginning of the file</li>
+<li>The width of the image</li>
+<li>The height of the image</li>
+<li>The highest byte value in the image content</li>
+<li>A raster of height rows, in order from top to bottom (these are raw bytes if the magic number is <code>P6</code>, or ASCII characters if the magic number is <code>P3</code>)</li>
+</ul>
+<p>Here is an example of a plain PPM file:</p>
+<pre style="background-color:#ffffff;color:#4d4d4c;"><code><span>P3  # This is the magic number denoting a plain PPM file
+</span><span>4 4 # The width and the height of the image
+</span><span>15  # The maximum byte size, followed by the raster
+</span><span> 0  0  0    0  0  0    0  0  0   15  0 15
+</span><span> 0  0  0    0 15  7    0  0  0    0  0  0
+</span><span> 0  0  0    0  0  0    0 15  7    0  0  0
+</span><span>15  0 15    0  0  0    0  0  0    0  0  0
+</span></code></pre>
+<p>Conveniently, the format supports <code>#</code> comments, which will come in handy later.</p>
+<h3 id="let-s-get-parsing">Let's get parsing</h3>
+<p>The idea is to leave the header portion of the file intact, and to encrypt only the actual data.
+This lets us open the image and view it - if we were to encrypt the entire file, that would also include the header,
+meaning your computer will have a hard time understanding what kind of file it is.</p>
+<p>Let's model the structure:</p>
+<pre data-lang="rust" style="background-color:#ffffff;color:#4d4d4c;" class="language-rust "><code class="language-rust" data-lang="rust"><span>#[</span><span style="color:#c82829;">derive</span><span>(Debug)]
+</span><span style="color:#8959a8;">pub enum </span><span>MagicNumber {
+</span><span>    </span><span style="color:#999999;">/// Indicates ASCII data
+</span><span>    </span><span style="color:#666969;">P3</span><span>,
+</span><span>    </span><span style="color:#999999;">/// Indicates binary data
+</span><span>    </span><span style="color:#666969;">P6</span><span>,
+</span><span>}
+</span><span>
+</span><span>#[</span><span style="color:#c82829;">derive</span><span>(Debug)]
+</span><span style="color:#8959a8;">pub struct </span><span>PpmHeader {
+</span><span>    </span><span style="color:#c82829;">magic_number</span><span>: MagicNumber,
+</span><span>    </span><span style="color:#8959a8;">pub </span><span style="color:#c82829;">width</span><span>: </span><span style="color:#8959a8;">usize</span><span>,
+</span><span>    </span><span style="color:#8959a8;">pub </span><span style="color:#c82829;">height</span><span>: </span><span style="color:#8959a8;">usize</span><span>,
+</span><span>    </span><span style="color:#8959a8;">pub </span><span style="color:#c82829;">max_val</span><span>: </span><span style="color:#8959a8;">usize</span><span>,
+</span><span>    </span><span style="color:#8959a8;">pub </span><span style="color:#c82829;">end</span><span>: </span><span style="color:#8959a8;">usize</span><span>,
+</span><span>}
+</span><span>
+</span><span>
+</span><span>#[</span><span style="color:#c82829;">derive</span><span>(Debug)]
+</span><span style="color:#8959a8;">pub struct </span><span>Ppm {
+</span><span>    </span><span style="color:#8959a8;">pub </span><span style="color:#c82829;">header</span><span>: PpmHeader,
+</span><span>    </span><span style="color:#8959a8;">pub </span><span style="color:#c82829;">data</span><span>: </span><span style="color:#c99e00;">Vec</span><span>&lt;</span><span style="color:#8959a8;">u8</span><span>&gt;,
+</span><span>}
+</span></code></pre>
+<p>I've included <code>end</code> to keep track of the offset delimiting the end of the header.
+Now we'll want to add some parsing logic for the header:</p>
+<pre data-lang="rust" style="background-color:#ffffff;color:#4d4d4c;" class="language-rust "><code class="language-rust" data-lang="rust"><span style="color:#8959a8;">impl </span><span>PpmHeader {
+</span><span>    </span><span style="color:#8959a8;">pub fn </span><span style="color:#4271ae;">from_str</span><span>(</span><span style="color:#f5871f;">text</span><span>: </span><span style="color:#3e999f;">&amp;</span><span style="color:#8959a8;">str</span><span>) -&gt; color_eyre::</span><span style="color:#c99e00;">Result</span><span>&lt;</span><span style="color:#8959a8;">Self</span><span>&gt; {
+</span><span>        </span><span style="color:#8959a8;">let mut</span><span> tokens </span><span style="color:#3e999f;">=</span><span> text
+</span><span>            .</span><span style="color:#4271ae;">lines</span><span>()
+</span><span>            .</span><span style="color:#4271ae;">filter_map</span><span>(|</span><span style="color:#f5871f;">line</span><span>| {
+</span><span>                </span><span style="color:#8959a8;">let</span><span> line </span><span style="color:#3e999f;">=</span><span> line.</span><span style="color:#4271ae;">trim</span><span>();
+</span><span>                </span><span style="color:#8959a8;">if</span><span> line.</span><span style="color:#4271ae;">starts_with</span><span>(</span><span style="color:#718c00;">&#39;#&#39;</span><span>) {
+</span><span>                    </span><span style="color:#c99e00;">None
+</span><span>                } </span><span style="color:#8959a8;">else </span><span>{
+</span><span>                    </span><span style="color:#c99e00;">Some</span><span>(
+</span><span>                        line.</span><span style="color:#4271ae;">split_whitespace</span><span>()
+</span><span>                            .</span><span style="color:#4271ae;">take_while</span><span>(|</span><span style="color:#f5871f;">token</span><span>| </span><span style="color:#3e999f;">!</span><span>token.</span><span style="color:#4271ae;">starts_with</span><span>(</span><span style="color:#718c00;">&#39;#&#39;</span><span>)),
+</span><span>                    )
+</span><span>                }
+</span><span>            })
+</span><span>            .</span><span style="color:#4271ae;">flatten</span><span>();
+</span><span>
+</span><span>        </span><span style="color:#8959a8;">let</span><span> magic_number </span><span style="color:#3e999f;">=
+</span><span>            MagicNumber::from_str(tokens.</span><span style="color:#4271ae;">next</span><span>().</span><span style="color:#4271ae;">ok_or_else</span><span>(|| eyre!(</span><span style="color:#718c00;">&quot;Missing identifier&quot;</span><span>))</span><span style="color:#3e999f;">?</span><span>)</span><span style="color:#3e999f;">?</span><span>;
+</span><span>
+</span><span>        </span><span style="color:#999999;">// More parsing...
+</span><span>
+</span><span>        </span><span style="color:#c99e00;">Ok</span><span>(PpmHeader {
+</span><span>            magic_number,
+</span><span>            width,
+</span><span>            height,
+</span><span>            max_val,
+</span><span>            end,
+</span><span>        })
+</span><span>    }
+</span><span>}
+</span></code></pre>
+<p>And putting it all together, i.e. parsing the whole file including header and data:</p>
+<pre data-lang="rust" style="background-color:#ffffff;color:#4d4d4c;" class="language-rust "><code class="language-rust" data-lang="rust"><span style="color:#8959a8;">impl </span><span>Ppm {
+</span><span>    </span><span style="color:#8959a8;">pub fn </span><span style="color:#4271ae;">from_file</span><span>(</span><span style="color:#f5871f;">file</span><span>: impl </span><span style="color:#c99e00;">AsRef</span><span>&lt;Path&gt;) -&gt; color_eyre::</span><span style="color:#c99e00;">Result</span><span>&lt;</span><span style="color:#8959a8;">Self</span><span>&gt; {
+</span><span>        </span><span style="color:#8959a8;">let mut</span><span> file </span><span style="color:#3e999f;">= </span><span>File::open(file)</span><span style="color:#3e999f;">?</span><span>;
+</span><span>
+</span><span>        </span><span style="color:#8959a8;">let mut</span><span> buffer </span><span style="color:#3e999f;">= </span><span style="color:#c99e00;">Vec</span><span>::new();
+</span><span>        file.</span><span style="color:#4271ae;">read_to_end</span><span>(</span><span style="color:#3e999f;">&amp;</span><span style="color:#8959a8;">mut</span><span> buffer)</span><span style="color:#3e999f;">?</span><span>;
+</span><span>
+</span><span>        </span><span style="color:#999999;">// Turn the bytes into text
+</span><span>        </span><span style="color:#8959a8;">let</span><span> image_text </span><span style="color:#3e999f;">= </span><span style="color:#c99e00;">String</span><span>::from_utf8_lossy(</span><span style="color:#3e999f;">&amp;</span><span>buffer);
+</span><span>
+</span><span>        </span><span style="color:#999999;">// Parse the header
+</span><span>        </span><span style="color:#8959a8;">let</span><span> header </span><span style="color:#3e999f;">= </span><span>PpmHeader::from_str(</span><span style="color:#3e999f;">&amp;</span><span>image_text)</span><span style="color:#3e999f;">?</span><span>;
+</span><span>
+</span><span>        </span><span style="color:#8959a8;">let</span><span> start_offset </span><span style="color:#3e999f;">=</span><span> image_text[header.end</span><span style="color:#3e999f;">..</span><span>]
+</span><span>            .</span><span style="color:#4271ae;">find</span><span>(|</span><span style="color:#f5871f;">c</span><span>: </span><span style="color:#8959a8;">char</span><span>| </span><span style="color:#3e999f;">!</span><span>c.</span><span style="color:#4271ae;">is_whitespace</span><span>())
+</span><span>            .</span><span style="color:#4271ae;">map</span><span>(|</span><span style="color:#f5871f;">i</span><span>| header.end </span><span style="color:#3e999f;">+</span><span> i)
+</span><span>            .</span><span style="color:#4271ae;">ok_or_else</span><span>(|| eyre!(</span><span style="color:#718c00;">&quot;Could not find start of pixel data&quot;</span><span>))</span><span style="color:#3e999f;">?</span><span>;
+</span><span>
+</span><span>
+</span><span>        </span><span style="color:#8959a8;">let</span><span> data </span><span style="color:#3e999f;">= </span><span style="color:#8959a8;">match</span><span> header.magic_number {
+</span><span>            </span><span style="color:#999999;">// Deserialize the data: if the magic number is P3, split by whitespace
+</span><span>            </span><span style="color:#999999;">// and parse each number into an unsigned 8-bit integer
+</span><span>            MagicNumber::</span><span style="color:#666969;">P3 </span><span style="color:#3e999f;">=&gt; </span><span>{
+</span><span>                </span><span style="color:#8959a8;">let</span><span> ascii_data </span><span style="color:#3e999f;">= &amp;</span><span>image_text[start_offset</span><span style="color:#3e999f;">..</span><span>];
+</span><span>                ascii_data
+</span><span>                    .</span><span style="color:#4271ae;">split_whitespace</span><span>()
+</span><span>                    .</span><span style="color:#4271ae;">map</span><span>(|</span><span style="color:#f5871f;">s</span><span>| s.parse::&lt;</span><span style="color:#8959a8;">u8</span><span>&gt;())
+</span><span>                    .collect::&lt;</span><span style="color:#c99e00;">Result</span><span>&lt;</span><span style="color:#c99e00;">Vec</span><span>&lt;</span><span style="color:#8959a8;">u8</span><span>&gt;, </span><span style="color:#3e999f;">_</span><span>&gt;&gt;()</span><span style="color:#3e999f;">?
+</span><span>            }
+</span><span>            </span><span style="color:#999999;">// Otherwise, if the magic number is P6, store the raw bytes
+</span><span>            MagicNumber::</span><span style="color:#666969;">P6 </span><span style="color:#3e999f;">=&gt;</span><span> buffer[start_offset</span><span style="color:#3e999f;">..</span><span>].</span><span style="color:#4271ae;">to_vec</span><span>(),
+</span><span>        };
+</span><span>
+</span><span>        </span><span style="color:#c99e00;">Ok</span><span>(Ppm { header, data })
+</span><span>    }
+</span><span>}
+</span></code></pre>
+<p>So far so good. This allows us to call <code>Pnpm::from_file</code> and have a struct holding the header and the actual byte data of the image.</p>
+<pre data-lang="rust" style="background-color:#ffffff;color:#4d4d4c;" class="language-rust "><code class="language-rust" data-lang="rust"><span style="color:#8959a8;">let mut</span><span> image </span><span style="color:#3e999f;">= </span><span>Ppm::from_file(</span><span style="color:#3e999f;">&amp;</span><span>file)</span><span style="color:#3e999f;">?</span><span>;
+</span></code></pre>
+<h3 id="encrypting-with-a-user-provided-passphrase">Encrypting with a user-provided passphrase</h3>
+<p>AES requires a key of 128-bytes for its encryption algorithm, though you could also use variants of AES that accept longer keys.
+Ask any human to produce a key of that length, and you'll be met with a blank stare.
+Fortunately, password-based <a href="https://en.wikipedia.org/wiki/Key_derivation_function">key derivation functions</a> exist: given a password, they produce a sequence of bytes which can be used as an encryption key.</p>
+<p>Given how insecure ECB is, you may be tempted to think that using a really strong key, generated with a sophisticated key derivation
+function, might provide enough security. You'd be sorely mistaken.</p>
+<p>Let's see why that is the case.
+I've picked <a href="https://en.wikipedia.org/wiki/Argon2">Argon2</a> for this example, which is widely considered one of the best password-hashing functions due to its properties (memory hardness, among others). It requires a salt as part of the input, so that two encryption keys derived from the same passphrase (but crucially, from two different salts) result in different outputs.</p>
+<pre data-lang="rust" style="background-color:#ffffff;color:#4d4d4c;" class="language-rust "><code class="language-rust" data-lang="rust"><span style="color:#999999;">// Create a 16-byte-long buffer, which is Argon2&#39;s recommended length for a salt
+</span><span style="color:#8959a8;">let mut</span><span> salt </span><span style="color:#3e999f;">= </span><span>[</span><span style="color:#f5871f;">0</span><span style="color:#8959a8;">u8</span><span>; Salt::</span><span style="color:#666969;">RECOMMENDED_LENGTH</span><span>];
+</span><span style="color:#999999;">// Fill the buffer with random bytes from the operating system
+</span><span>OsRng.</span><span style="color:#4271ae;">fill_bytes</span><span>(</span><span style="color:#3e999f;">&amp;</span><span style="color:#8959a8;">mut</span><span> salt);
+</span><span>
+</span><span style="color:#999999;">// Create a 32-byte buffer to use as the encryption key
+</span><span style="color:#8959a8;">let mut</span><span> output_key_material </span><span style="color:#3e999f;">= </span><span>[</span><span style="color:#f5871f;">0</span><span style="color:#8959a8;">u8</span><span>; </span><span style="color:#f5871f;">32</span><span>];
+</span><span style="color:#999999;">// ...and fill it with bytes created by the Argon2 function using
+</span><span style="color:#999999;">// &quot;i-have-eaten-the-plums-that-were-in-the-icebox&quot; as the passphrase,
+</span><span style="color:#999999;">// which is arguably more memorable than a sequence of 32 random-looking bytes
+</span><span>Argon2::default()
+</span><span>    .</span><span style="color:#4271ae;">hash_password_into</span><span>(</span><span style="color:#8959a8;">b</span><span style="color:#718c00;">&quot;i-have-eaten-the-plums-that-were-in-the-icebox&quot;</span><span>, </span><span style="color:#3e999f;">&amp;</span><span>salt, </span><span style="color:#3e999f;">&amp;</span><span style="color:#8959a8;">mut</span><span> output_key_material)
+</span><span>    .</span><span style="color:#4271ae;">unwrap</span><span>();
+</span></code></pre>
+<p>We now have all the elements to encrypt our penguin. Let's add a method to the <code>Ppm</code> implementation:</p>
+<pre data-lang="rust" style="background-color:#ffffff;color:#4d4d4c;" class="language-rust "><code class="language-rust" data-lang="rust"><span style="color:#8959a8;">impl </span><span>Ppm {
+</span><span>    </span><span style="color:#999999;">// ...other methods
+</span><span>
+</span><span>    </span><span style="color:#999999;">/// Encrypts the data using AES256-ECB.
+</span><span>    </span><span style="color:#999999;">/// For demonstration purposes only!
+</span><span>    </span><span style="color:#8959a8;">pub fn </span><span style="color:#4271ae;">encrypt_with_aes_ecb</span><span>(</span><span style="color:#3e999f;">&amp;</span><span style="color:#8959a8;">mut </span><span style="color:#f5871f;">self</span><span>, </span><span style="color:#f5871f;">cipher</span><span>: </span><span style="color:#3e999f;">&amp;</span><span>Aes256) {
+</span><span>        </span><span style="color:#8959a8;">const </span><span style="color:#666969;">BLOCK_SIZE</span><span>: </span><span style="color:#8959a8;">usize </span><span style="color:#3e999f;">= </span><span style="color:#f5871f;">16</span><span>;
+</span><span>        </span><span style="color:#8959a8;">let</span><span> padding </span><span style="color:#3e999f;">= </span><span style="color:#666969;">BLOCK_SIZE </span><span style="color:#3e999f;">- </span><span>(</span><span style="color:#c82829;">self</span><span>.data.</span><span style="color:#4271ae;">len</span><span>() </span><span style="color:#3e999f;">% </span><span style="color:#666969;">BLOCK_SIZE</span><span>);
+</span><span>        </span><span style="color:#c82829;">self</span><span>.data.</span><span style="color:#4271ae;">extend</span><span>(vec![padding </span><span style="color:#3e999f;">as </span><span style="color:#8959a8;">u8</span><span>; padding]);
+</span><span>
+</span><span>        </span><span style="color:#8959a8;">for</span><span> chunk </span><span style="color:#3e999f;">in </span><span style="color:#c82829;">self</span><span>.data.</span><span style="color:#4271ae;">chunks_exact_mut</span><span>(</span><span style="color:#666969;">BLOCK_SIZE</span><span>) {
+</span><span>            cipher.</span><span style="color:#4271ae;">encrypt_block</span><span>(GenericArray::from_mut_slice(chunk));
+</span><span>        }
+</span><span>    }
+</span><span>}
+</span><span>
+</span></code></pre>
+<p>As indicated by <code>&amp;mut self</code> in the signature, this will mutate the original data stored in the struct.</p>
+<p>All that's left to do is writing a function to dump the bytes to disk:</p>
+<pre data-lang="rust" style="background-color:#ffffff;color:#4d4d4c;" class="language-rust "><code class="language-rust" data-lang="rust"><span style="color:#8959a8;">impl </span><span>Ppm {
+</span><span>    </span><span style="color:#999999;">// ...other methods
+</span><span>
+</span><span>    </span><span style="color:#8959a8;">pub fn </span><span style="color:#4271ae;">write_to_disk</span><span>(</span><span style="color:#3e999f;">&amp;</span><span style="color:#f5871f;">self</span><span>, </span><span style="color:#f5871f;">path</span><span>: </span><span style="color:#3e999f;">&amp;</span><span>Path) -&gt; color_eyre::</span><span style="color:#c99e00;">Result</span><span>&lt;()&gt; {
+</span><span>        </span><span style="color:#8959a8;">let mut</span><span> buf: </span><span style="color:#c99e00;">Vec</span><span>&lt;</span><span style="color:#8959a8;">u8</span><span>&gt; </span><span style="color:#3e999f;">= </span><span style="color:#c99e00;">Vec</span><span>::new();
+</span><span>
+</span><span>        writeln!(&amp;mut buf, </span><span style="color:#718c00;">&quot;</span><span style="color:#666969;">{}</span><span style="color:#718c00;">&quot;</span><span>, MagicNumber::</span><span style="color:#666969;">P6</span><span>)</span><span style="color:#3e999f;">?</span><span>;
+</span><span>        writeln!(&amp;mut buf, </span><span style="color:#718c00;">&quot;</span><span style="color:#666969;">{} {}</span><span style="color:#718c00;">&quot;</span><span>, </span><span style="color:#c82829;">self</span><span>.header.width, </span><span style="color:#c82829;">self</span><span>.header.height)</span><span style="color:#3e999f;">?</span><span>;
+</span><span>        writeln!(&amp;mut buf, </span><span style="color:#718c00;">&quot;</span><span style="color:#666969;">{}</span><span style="color:#718c00;">&quot;</span><span>, </span><span style="color:#c82829;">self</span><span>.header.max_val)</span><span style="color:#3e999f;">?</span><span>;
+</span><span>        buf.</span><span style="color:#4271ae;">extend_from_slice</span><span>(</span><span style="color:#3e999f;">&amp;</span><span style="color:#c82829;">self</span><span>.data);
+</span><span>
+</span><span>        fs::write(</span><span style="color:#3e999f;">&amp;</span><span>path, </span><span style="color:#3e999f;">&amp;</span><span>buf)</span><span style="color:#3e999f;">?</span><span>;
+</span><span>
+</span><span>        </span><span style="color:#c99e00;">Ok</span><span>(())
+</span><span>    }
+</span><span>}
+</span></code></pre>
+<p>And here is the result...</p>
+<img src="/images/Tux.ecb.encrypted.png">
+<p>Even with a 256-bit key generated with Argon2, <strong>AES-ECB is still insecure. You can stil see the penguin</strong>.</p>
+<h3 id="what-about-decryption">What about decryption?</h3>
+<p>We could stop here, but let's write a decryption function for the sake of completeness.</p>
+<p>You will recall that a successful decryption can only occur if the same encryption key is used for decryption.
+However, the Argon2-derived key was generated with a random salt, and the same salt <strong>must</strong> be used in order to produce the same key.
+This means the salt must be stored <em>somewhere</em>. What better place than the PPM file header itself?</p>
+<p>The PPM format conveniently allows comments in the header: anything following the <code>#</code> character is treated as a comment.
+We can leverage that to our advantage by storing the salt in the header, and updating the Rust code accordingly when reading from/writing to disk.</p>
+<pre data-lang="rust" style="background-color:#ffffff;color:#4d4d4c;" class="language-rust "><code class="language-rust" data-lang="rust"><span>#[</span><span style="color:#c82829;">derive</span><span>(Debug)]
+</span><span style="color:#8959a8;">pub struct </span><span>PpmHeader {
+</span><span>    </span><span style="color:#c82829;">magic_number</span><span>: MagicNumber,
+</span><span>    </span><span style="color:#8959a8;">pub </span><span style="color:#c82829;">width</span><span>: </span><span style="color:#8959a8;">usize</span><span>,
+</span><span>    </span><span style="color:#8959a8;">pub </span><span style="color:#c82829;">height</span><span>: </span><span style="color:#8959a8;">usize</span><span>,
+</span><span>    </span><span style="color:#8959a8;">pub </span><span style="color:#c82829;">max_val</span><span>: </span><span style="color:#8959a8;">usize</span><span>,
+</span><span>    </span><span style="color:#8959a8;">pub </span><span style="color:#c82829;">end</span><span>: </span><span style="color:#8959a8;">usize</span><span>,
+</span><span>    </span><span style="color:#999999;">// Store the salt here
+</span><span>    </span><span style="color:#8959a8;">pub </span><span style="color:#c82829;">salt</span><span>: </span><span style="color:#c99e00;">Option</span><span>&lt;</span><span style="color:#c99e00;">Vec</span><span>&lt;</span><span style="color:#8959a8;">u8</span><span>&gt;&gt;,
+</span><span>}
+</span></code></pre>
+<p>Storing the salt as part of the file is not a security risk. In fact, <a href="https://www.zetetic.net/sqlcipher/">SQLCipher</a>, an encrypted version of SQLite, stores the salt as the first 16 bytes of the database file!
+Note that I chose to represent the salt bytes in hexadecimal notation, but any encoding will do.</p>
+<pre style="background-color:#ffffff;color:#4d4d4c;"><code><span>$ head -n4 Tux.encrypted.ppm
+</span><span>
+</span><span>P6
+</span><span>265 314
+</span><span># salt a35211ebcbc5ccca063910c61d54deaa
+</span><span>255
+</span></code></pre>
+<h3 id="all-of-this-is-useless-ecb-is-still-bad-can-we-do-better">All of this is useless, ECB is still bad! Can we do better?</h3>
+<p>We can use GCM instead.
+GCM stands for <a href="https://en.wikipedia.org/wiki/Galois/Counter_Mode">Galois/Counter Mode</a>, and effectively turns the block cipher into a <a href="https://en.wikipedia.org/wiki/Stream_cipher">stream cipher</a>.</p>
+<p>The math behind GCM is very complicated, but it comes with extremely useful properties: it uses a counter internally, meaning that the same block encrypted twice will produce a different result. This conveniently solves the pattern leakage issue that ECB suffers from.</p>
+<p>It also provides <em>authenticated encryption</em>, which is an encryption scheme that makes the ciphertext tamper-resistant. It achieves this by producing an authentication tag, so that the integrity of the message is also verified during decryption. In other words, if any bytes of the ciphertext bytes were altered, decryption would not succeed.</p>
+<p>This makes it an ideal candidate for a large number of use cases. Chances are you've been using AES-GCM without even realising.
+AWS, for example, uses it to <a href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/UsingServerSideEncryption.html">encrypt S3 files</a> at rest, and it's also commonly used in Wi-Fi communication protocols.
+Generally speaking, AES is so ubiquitous that modern CPUs include special instructions to perform its operations as quickly and efficiently as possible.</p>
+<p>Let's put it to the test.
+AES-GCM requires a <em>nonce</em> (number used once) to produce a unique keystream. We'll also need to keep track of the nonce for decryption purposes, so let's change the structure of our PPM header:</p>
+<pre data-lang="rust" style="background-color:#ffffff;color:#4d4d4c;" class="language-rust "><code class="language-rust" data-lang="rust"><span>#[</span><span style="color:#c82829;">derive</span><span>(Debug)]
+</span><span style="color:#8959a8;">pub struct </span><span>PpmHeader {
+</span><span>    </span><span style="color:#c82829;">magic_number</span><span>: MagicNumber,
+</span><span>    </span><span style="color:#8959a8;">pub </span><span style="color:#c82829;">width</span><span>: </span><span style="color:#8959a8;">usize</span><span>,
+</span><span>    </span><span style="color:#8959a8;">pub </span><span style="color:#c82829;">height</span><span>: </span><span style="color:#8959a8;">usize</span><span>,
+</span><span>    </span><span style="color:#8959a8;">pub </span><span style="color:#c82829;">max_val</span><span>: </span><span style="color:#8959a8;">usize</span><span>,
+</span><span>    </span><span style="color:#8959a8;">pub </span><span style="color:#c82829;">end</span><span>: </span><span style="color:#8959a8;">usize</span><span>,
+</span><span>    </span><span style="color:#8959a8;">pub </span><span style="color:#c82829;">salt</span><span>: </span><span style="color:#c99e00;">Option</span><span>&lt;</span><span style="color:#c99e00;">Vec</span><span>&lt;</span><span style="color:#8959a8;">u8</span><span>&gt;&gt;,
+</span><span>    </span><span style="color:#999999;">// Let&#39;s store the nonce here
+</span><span>    </span><span style="color:#8959a8;">pub </span><span style="color:#c82829;">nonce</span><span>: </span><span style="color:#c99e00;">Option</span><span>&lt;</span><span style="color:#c99e00;">Vec</span><span>&lt;</span><span style="color:#8959a8;">u8</span><span>&gt;&gt;,
+</span><span>}
+</span></code></pre>
+<p>Of course, we still need to generate an encryption key; we can derive one with Argon2, as above.</p>
+<pre data-lang="rust" style="background-color:#ffffff;color:#4d4d4c;" class="language-rust "><code class="language-rust" data-lang="rust"><span style="color:#8959a8;">let mut</span><span> salt </span><span style="color:#3e999f;">= </span><span>[</span><span style="color:#f5871f;">0</span><span style="color:#8959a8;">u8</span><span>; Salt::</span><span style="color:#666969;">RECOMMENDED_LENGTH</span><span>];
+</span><span>OsRng.</span><span style="color:#4271ae;">fill_bytes</span><span>(</span><span style="color:#3e999f;">&amp;</span><span style="color:#8959a8;">mut</span><span> salt);
+</span><span>
+</span><span>image.header.salt </span><span style="color:#3e999f;">= </span><span style="color:#c99e00;">Some</span><span>(salt.</span><span style="color:#4271ae;">to_vec</span><span>());
+</span><span>
+</span><span style="color:#8959a8;">let mut</span><span> output_key_material </span><span style="color:#3e999f;">= </span><span>[</span><span style="color:#f5871f;">0</span><span style="color:#8959a8;">u8</span><span>; </span><span style="color:#f5871f;">32</span><span>];
+</span><span>Argon2::default()
+</span><span>    .</span><span style="color:#4271ae;">hash_password_into</span><span>(key.</span><span style="color:#4271ae;">as_bytes</span><span>(), </span><span style="color:#3e999f;">&amp;</span><span>salt, </span><span style="color:#3e999f;">&amp;</span><span style="color:#8959a8;">mut</span><span> output_key_material)
+</span><span>    .</span><span style="color:#4271ae;">unwrap</span><span>();
+</span><span>
+</span><span style="color:#8959a8;">let</span><span> cipher </span><span style="color:#3e999f;">= </span><span>Aes256Gcm::new(</span><span style="color:#3e999f;">&amp;</span><span>GenericArray::from_slice(</span><span style="color:#3e999f;">&amp;</span><span>output_key_material));
+</span><span>image.</span><span style="color:#4271ae;">encrypt_with_aes_gcm</span><span>(</span><span style="color:#3e999f;">&amp;</span><span>cipher)</span><span style="color:#3e999f;">?</span><span>;
+</span></code></pre>
+<p>And here is the <code>encrypt_with_aes_gcm</code> function:</p>
+<pre data-lang="rust" style="background-color:#ffffff;color:#4d4d4c;" class="language-rust "><code class="language-rust" data-lang="rust"><span style="color:#8959a8;">impl </span><span>Ppm {
+</span><span>    </span><span style="color:#999999;">// ...other methods
+</span><span>
+</span><span>    </span><span style="color:#8959a8;">pub fn </span><span style="color:#4271ae;">encrypt_with_aes_gcm</span><span>(</span><span style="color:#3e999f;">&amp;</span><span style="color:#8959a8;">mut </span><span style="color:#f5871f;">self</span><span>, </span><span style="color:#f5871f;">cipher</span><span>: </span><span style="color:#3e999f;">&amp;</span><span>Aes256Gcm) -&gt; color_eyre::</span><span style="color:#c99e00;">Result</span><span>&lt;()&gt; {
+</span><span>        </span><span style="color:#8959a8;">let</span><span> nonce </span><span style="color:#3e999f;">= </span><span>Aes256Gcm::generate_nonce(</span><span style="color:#3e999f;">&amp;</span><span style="color:#8959a8;">mut</span><span> OsRng);
+</span><span>        </span><span style="color:#c82829;">self</span><span>.header.nonce </span><span style="color:#3e999f;">= </span><span style="color:#c99e00;">Some</span><span>(nonce.</span><span style="color:#4271ae;">to_vec</span><span>());
+</span><span>
+</span><span>        </span><span style="color:#8959a8;">let</span><span> ciphertext </span><span style="color:#3e999f;">=</span><span> cipher
+</span><span>            .</span><span style="color:#4271ae;">encrypt</span><span>(</span><span style="color:#3e999f;">&amp;</span><span>nonce, </span><span style="color:#c82829;">self</span><span>.data.</span><span style="color:#4271ae;">as_slice</span><span>())
+</span><span>            .</span><span style="color:#4271ae;">map_err</span><span>(|</span><span style="color:#f5871f;">e</span><span>| eyre!(</span><span style="color:#718c00;">&quot;AES-GCM encryption error: {:?}&quot;</span><span>, e))</span><span style="color:#3e999f;">?</span><span>;
+</span><span>
+</span><span>        </span><span style="color:#c82829;">self</span><span>.data </span><span style="color:#3e999f;">=</span><span> ciphertext;
+</span><span>        </span><span style="color:#c99e00;">Ok</span><span>(())
+</span><span>    }
+</span><span>}
+</span></code></pre>
+<table><thead><tr><th>Original image</th><th>Encrypted with AES-ECB</th><th>Encrypted with AES-GCM</th></tr></thead><tbody>
+<tr><td><img src="/images/Tux.png"></td><td><img src="/images/Tux.ecb.encrypted.png"></td><td><img src="/images/Tux.gcm.encrypted.png"></td></tr>
+</tbody></table>
+<h3 id="conclusions">Conclusions</h3>
+<p>The image encrypted with AES-GCM bears no resemblance to the original input. The big white, black, and orange blobs
+of colour are clearly distinguishable when using AES in ECB mode, despite having used a state-of-the-art
+encryption key derivation function. Ultimately, ECB transforms the blocks from the original input in an extremely
+predictable way, making the encryption key almost laughably irrelevant.</p>
+<p>On the other hand, it is impossible to spot any element of the original image in the GCM output: <strong>the penguin disappeared</strong>.</p>
+<h3 id="notes">Notes</h3>
+<p>The <a href="/images/Tux.ppm">Tux.ppm</a> image and the <a href="https://gist.github.com/marsavar/76f672fd6151da23dbe7de1161370dda">CLI source code</a> are available for download.</p>
+<p>Below are some extra checks validating the integrity of the files after the encryption/decryption round trip.</p>
+<pre data-lang="bash" style="background-color:#ffffff;color:#4d4d4c;" class="language-bash "><code class="language-bash" data-lang="bash"><span style="color:#999999;"># Round trip with AES-ECB produces the same digest
+</span><span style="color:#c82829;">cargo</span><span style="color:#4271ae;"> run</span><span style="color:#3e999f;"> --</span><span style="color:#4271ae;"> encrypt --file Tux.ppm --key sunshine123 --mode ecb
+</span><span style="color:#c82829;">cargo</span><span style="color:#4271ae;"> run</span><span style="color:#3e999f;"> --</span><span style="color:#4271ae;"> decrypt --file Tux.Ecb.67438efc.encrypted.ppm --key sunshine123 --mode ecb
+</span><span style="color:#c82829;">sha256</span><span style="color:#4271ae;"> Tux.ppm </span><span style="color:#999999;"># 6fb56d4eb39e35603b525e9dd3e3cd33a16e34f32bd1196ae47402df65a50ab0
+</span><span style="color:#c82829;">sha256</span><span style="color:#4271ae;"> Tux.Ecb.67438efc.decrypted.ppm </span><span style="color:#999999;"># 6fb56d4eb39e35603b525e9dd3e3cd33a16e34f32bd1196ae47402df65a50ab0
+</span><span>
+</span><span style="color:#999999;"># Round trip with AES-GCM also produces the same digest
+</span><span style="color:#c82829;">cargo</span><span style="color:#4271ae;"> run</span><span style="color:#3e999f;"> --</span><span style="color:#4271ae;"> encrypt --file Tux.ppm --key sunshine123 --mode gcm
+</span><span style="color:#c82829;">cargo</span><span style="color:#4271ae;"> run</span><span style="color:#3e999f;"> --</span><span style="color:#4271ae;"> decrypt --file Tux.Gcm.f56ef398.encrypted.ppm --key sunshine123 --mode gcm
+</span><span style="color:#c82829;">sha256</span><span style="color:#4271ae;"> Tux.Gcm.f56ef398.decrypted.ppm </span><span style="color:#999999;"># 6fb56d4eb39e35603b525e9dd3e3cd33a16e34f32bd1196ae47402df65a50ab0
+</span></code></pre>
+</section>
+</div>
+
+ 
+<div class="tags">
+  <ul>
+    
+    <li><a href="https:&#x2F;&#x2F;www.mariosavarese.com&#x2F;blog&#x2F;tags&#x2F;cryptography&#x2F;"># cryptography</a></li>
+    
+    <li><a href="https:&#x2F;&#x2F;www.mariosavarese.com&#x2F;blog&#x2F;tags&#x2F;rust&#x2F;"># rust</a></li>
+    
+  </ul>
+</div>
+ 
+    </div>
+  </section>
+  <section>
+  <div class="rss">
+    <ul>
+      <li><a href="/blog/rss.xml">RSS</a></li>
+      <li><a href="/blog/atom.xml">Atom</a></li>
+    </ul>
+  </div>
+  </section>
+</body>
+
+</html>

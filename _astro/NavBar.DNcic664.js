@@ -1,0 +1,1 @@
+import{r as a}from"./index.CbttJwvd.js";const l=()=>(a.useEffect(()=>{(()=>{document.querySelectorAll("ul > li > a").forEach(t=>{t.getAttribute("href")===window.location.pathname&&t.classList.add("active")})})()},[]),null);export{l as NavBar};

@@ -1,0 +1,205 @@
+body {
+  height: 100%;
+  font-family: Helvetica, sans-serif;
+  margin: 20px;
+  font-size: 1.2rem;
+  font-weight: 100;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #f9f9f9;
+}
+
+a {
+  border-bottom: 1px solid #fcd303;
+  color: black;
+  text-decoration: none;
+  padding: 2px;
+  -webkit-transition:
+    background-color 0.2s linear,
+    border-radius 0.2s linear;
+  -moz-transition:
+    background-color 0.2s linear,
+    border-radius 0.2s linear;
+  -o-transition:
+    background-color 0.2s linear,
+    border-radius 0.2s linear;
+  transition:
+    background-color 0.2s linear,
+    border-radius 0.2s linear;
+}
+
+a:hover {
+  background-color: #fcd303;
+  border-radius: 4px;
+}
+
+h1 {
+  font-family: Arial, Helvetica, sans-serif;
+  font-weight: 600;
+  font-size: 3rem;
+  letter-spacing: -1pt;
+  margin: 0;
+  margin-top: -3px;
+  margin-bottom: 6px;
+  border-bottom: 6px solid #fcd303;
+  display: inline-block;
+  opacity: 1;
+}
+
+.blog-posts-title {
+  text-transform: lowercase;
+}
+
+h3 {
+  font-family: Arial, Helvetica, sans-serif;
+  font-weight: 600;
+  font-size: 1.4rem;
+  letter-spacing: -0.5pt;
+  margin: 0;
+  margin-top: -3px;
+  margin-bottom: 6px;
+  border-bottom: 2px solid #fcd303;
+  display: inline-block;
+  opacity: 1;
+}
+
+.container {
+  max-width: 54rem;
+}
+
+pre {
+  border-radius: 0.8em;
+  padding: 1rem;
+  overflow: auto;
+  white-space: pre-wrap;
+  line-height: 1.5em;
+  font-size: 0.8em;
+}
+/* The line numbers already provide some kind of left/right padding */
+pre[data-linenos] {
+  padding: 1rem 0;
+}
+pre table td {
+  padding: 0 0.4em;
+}
+
+pre table td:nth-of-type(1) {
+  text-align: center;
+  vertical-align: top;
+  user-select: none;
+}
+
+pre mark {
+  display: block;
+  background-color: rgba(254, 252, 232, 0.9);
+}
+
+pre table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.blog-post {
+  font-size: 1.1rem;
+  line-height: 1.6rem;
+  margin-top: 4rem;
+}
+
+.blog-posts {
+  margin-top: 4rem;
+  max-width: 1000px;
+}
+.blog-posts ul {
+  line-height: 1.6em;
+  padding-inline-start: 0;
+}
+
+.blog-posts li {
+  list-style: none;
+}
+
+.individual-blog-post {
+  line-height: 1.6rem;
+  margin-bottom: 2rem;
+}
+
+.read-time {
+  margin-left: 1em;
+}
+
+nav ul {
+  padding-left: 0;
+  display: flex;
+  flex-wrap: nowrap;
+}
+nav a {
+  border-bottom: none;
+}
+nav li {
+  font-family: Arial, Helvetica, sans-serif;
+  font-weight: 600;
+  font-size: 1.3rem;
+  letter-spacing: -0.5pt;
+  text-transform: lowercase;
+  margin: 0 2rem 0 0;
+  display: inline-block;
+  transition: none;
+}
+.active {
+  border-bottom: 2px solid #fcd303;
+}
+
+.tags {
+  padding-top: 1.4rem;
+  padding-left: 0;
+  display: flex;
+  flex-wrap: nowrap;
+  max-width: 1000px;
+  font-size: 1.1rem;
+}
+
+.tags ul {
+  list-style-type: none;
+  margin: 0;
+  padding: 0;
+}
+
+.tags ul:first-child::before {
+  content: "Tags:";
+  margin-right: 0.4rem;
+  text-transform: lowercase;
+}
+
+.tags li {
+  display: inline-block;
+  margin-right: 0.6rem;
+  text-transform: lowercase;
+}
+
+.rss {
+  padding-top: 2rem;
+  padding-left: 0;
+  display: flex;
+  flex-wrap: nowrap;
+  max-width: 1000px;
+  font-size: 1.1rem;
+}
+
+.rss ul {
+  list-style-type: none;
+  margin: 0;
+  padding: 0;
+}
+
+.rss li {
+  display: inline-block;
+  margin-right: 0.6rem;
+  text-transform: lowercase;
+}
+
+code:not(pre code) {
+  background-color: #e0e0e0;
+  padding: 2px;
+  border-radius: 4px;
+  font-size: 1rem;
+}

@@ -1,0 +1,349 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss xmlns:atom="http://www.w3.org/2005/Atom" version="2.0">
+    <channel>
+      <title>Mario Savarese - rust</title>
+      <link>https://www.mariosavarese.com/blog</link>
+      <description>mariosavarese.com&#x2F;blog feed</description>
+      <generator>Zola</generator>
+      <language>en</language>
+      <atom:link href="https://www.mariosavarese.com/blog/tags/rust/rss.xml" rel="self" type="application/rss+xml"/>
+      <lastBuildDate>Fri, 15 Aug 2025 00:00:00 +0000</lastBuildDate>
+      <item>
+          <title>Insecurely encrypting images with Rust</title>
+          <pubDate>Fri, 15 Aug 2025 00:00:00 +0000</pubDate>
+          <author>Mario Savarese</author>
+          <link>https://www.mariosavarese.com/blog/insecurely-encrypting-images-with-rust/</link>
+          <guid>https://www.mariosavarese.com/blog/insecurely-encrypting-images-with-rust/</guid>
+          <description xml:base="https://www.mariosavarese.com/blog/insecurely-encrypting-images-with-rust/">&lt;p&gt;This article demonstrates how a block encryption cipher can still be insecure if it uses an insecure mode of operation.
+It includes a simple Rust program that encrypts PPM images using the AES block cipher with different modes of operation.&lt;&#x2F;p&gt;
+&lt;h3 id=&quot;a-primer-on-encryption&quot;&gt;A primer on encryption&lt;&#x2F;h3&gt;
+&lt;p&gt;In the simplest possible terms, encryption is achieved by taking an input (in our case an image), applying some operations to it,
+and producing an output that differs from the original input, with the purpose of protecting data from prying eyes.
+Crucially, &lt;strong&gt;the output must be reversible&lt;&#x2F;strong&gt;, so that the original input can be recovered.&lt;&#x2F;p&gt;
+&lt;p&gt;Scrambling the original input to produce an encrypted output is achieved through a &lt;em&gt;key&lt;&#x2F;em&gt;, which is a sequence of bytes.
+In the case of symmetric encryption, the output can only be decrypted by using the same key that was used to encrypt it.&lt;&#x2F;p&gt;
+&lt;p&gt;This is different from &lt;em&gt;asymmetric encryption&lt;&#x2F;em&gt; (also known as public-key encryption), where the key used for &lt;em&gt;encryption&lt;&#x2F;em&gt;
+is different from the key used for &lt;em&gt;decryption&lt;&#x2F;em&gt;. The modern internet relies on asymmetric encryption: as a matter of fact,
+you&#x27;re reading this blog post over HTTPS, which means your browser and the server participated
+in a key exhange mechanism. That exchange produced a shared symmetric key which was then used to encrypt the HTTP traffic.&lt;&#x2F;p&gt;
+&lt;p&gt;For the purpose of this blog post, I&#x27;ll be focusing on symmetric encryption.&lt;&#x2F;p&gt;
+&lt;h3 id=&quot;block-ciphers-and-modes-of-operation&quot;&gt;Block ciphers and modes of operation&lt;&#x2F;h3&gt;
+&lt;p&gt;&lt;a href=&quot;https:&#x2F;&#x2F;nostarch.com&#x2F;serious-cryptography-2nd-edition&quot;&gt;Aumasson&lt;&#x2F;a&gt; defines a block cipher as consisting of an encryption algorithm &lt;code&gt;E&lt;&#x2F;code&gt; which takes a key &lt;code&gt;K&lt;&#x2F;code&gt; and a plaintext &lt;code&gt;P&lt;&#x2F;code&gt; as its input, and produces a ciphertext &lt;code&gt;C&lt;&#x2F;code&gt;. That is to say, encryption is expressed as &lt;code&gt;C = E(K, P)&lt;&#x2F;code&gt;, and decryption as its inverse, i.e. &lt;code&gt;P = D(K, C)&lt;&#x2F;code&gt;&lt;&#x2F;p&gt;
+&lt;p&gt;A block cipher is so named because it operates on fix-sized blocks. &lt;a href=&quot;https:&#x2F;&#x2F;www.nist.gov&#x2F;publications&#x2F;advanced-encryption-standard-aes&quot;&gt;AES&lt;&#x2F;a&gt; (Advanced Encryption Standard) is the most popular block cipher, and it processes data in blocks of 16 bytes at a time. If the input length is not divisible by 16, the remainder is usually padded.&lt;&#x2F;p&gt;
+&lt;p&gt;How should the cipher behave when encrypting some arbitrarily sized input? This is when &lt;em&gt;modes of operation&lt;&#x2F;em&gt; come into play. A mode of operation
+provides instructions on what to do on long sequences of input.&lt;&#x2F;p&gt;
+&lt;p&gt;The most intuitive, and probably the most problematic (we&#x27;ll see why in a bit), is the Electronic Code Book (&lt;strong&gt;ECB&lt;&#x2F;strong&gt;) mode of operation.
+ECB simply applies the encryption algorithm to a block, then proceeds to applying it to the next block and so on,
+until the plaintext is fully exhausted.&lt;&#x2F;p&gt;
+&lt;pre style=&quot;background-color:#ffffff;color:#4d4d4c;&quot;&gt;&lt;code&gt;&lt;span&gt;         Plaintext             Plaintext             Plaintext
+&lt;&#x2F;span&gt;&lt;span&gt;             ↓                     ↓                     ↓
+&lt;&#x2F;span&gt;&lt;span&gt;      +-------------+       +-------------+       +-------------+
+&lt;&#x2F;span&gt;&lt;span&gt; Key →|     AES     |  Key →|     AES     |  Key →|     AES     |
+&lt;&#x2F;span&gt;&lt;span&gt;      +-------------+       +-------------+       +-------------+
+&lt;&#x2F;span&gt;&lt;span&gt;             ↓                     ↓                     ↓
+&lt;&#x2F;span&gt;&lt;span&gt;         Ciphertext            Ciphertext            Ciphertext
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;One of the security goals of encryption is indistiguishability from random data, but encrypting blocks is fundamentally at odds with that goal, because it reveals patterns from the original plaintext. Think of it this way: if the same block is encrypted twice, it will produce
+exactly the same output. You may not figure out what that means, but you&#x27;ll still get enough details about the plaintext which
+you were trying to hide in the first place.&lt;&#x2F;p&gt;
+&lt;p&gt;The most striking example that has been used over the years to drive home this point is the infamous ECB Penguin: even after
+encrypting an image of the Linux mascot using AES-ECB, you can still see the penguin!&lt;&#x2F;p&gt;
+&lt;table&gt;&lt;thead&gt;&lt;tr&gt;&lt;th&gt;Original image&lt;&#x2F;th&gt;&lt;th&gt;Encrypted with AES-ECB&lt;&#x2F;th&gt;&lt;&#x2F;tr&gt;&lt;&#x2F;thead&gt;&lt;tbody&gt;
+&lt;tr&gt;&lt;td&gt;&lt;img src=&quot;&#x2F;images&#x2F;Tux.png&quot;&gt;&lt;&#x2F;td&gt;&lt;td&gt;&lt;img src=&quot;&#x2F;images&#x2F;Tux.encrypted.png&quot;&gt;&lt;&#x2F;td&gt;&lt;&#x2F;tr&gt;
+&lt;&#x2F;tbody&gt;&lt;&#x2F;table&gt;
+&lt;p&gt;I decided to write a small Rust program to achieve the same result and demonstrate that even using a 256-bit long key
+derived with the state-of-the-art Argon2 password-hashing algorithm, ECB still proves to be insecure.&lt;&#x2F;p&gt;
+&lt;h3 id=&quot;the-ppm-format&quot;&gt;The PPM format&lt;&#x2F;h3&gt;
+&lt;p&gt;Filippo Valsorda cleverly &lt;a href=&quot;https:&#x2F;&#x2F;words.filippo.io&#x2F;the-ecb-penguin&#x2F;&quot;&gt;pointed out&lt;&#x2F;a&gt; that the easiest image format to manipulate
+to achieve this is &lt;a href=&quot;https:&#x2F;&#x2F;netpbm.sourceforge.net&#x2F;doc&#x2F;ppm.html&quot;&gt;PPM&lt;&#x2F;a&gt;, or Portable Pixel Map. This is because the format is
+very easy to parse, and only consists of the following:&lt;&#x2F;p&gt;
+&lt;ul&gt;
+&lt;li&gt;A magic number at the beginning of the file&lt;&#x2F;li&gt;
+&lt;li&gt;The width of the image&lt;&#x2F;li&gt;
+&lt;li&gt;The height of the image&lt;&#x2F;li&gt;
+&lt;li&gt;The highest byte value in the image content&lt;&#x2F;li&gt;
+&lt;li&gt;A raster of height rows, in order from top to bottom (these are raw bytes if the magic number is &lt;code&gt;P6&lt;&#x2F;code&gt;, or ASCII characters if the magic number is &lt;code&gt;P3&lt;&#x2F;code&gt;)&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;p&gt;Here is an example of a plain PPM file:&lt;&#x2F;p&gt;
+&lt;pre style=&quot;background-color:#ffffff;color:#4d4d4c;&quot;&gt;&lt;code&gt;&lt;span&gt;P3  # This is the magic number denoting a plain PPM file
+&lt;&#x2F;span&gt;&lt;span&gt;4 4 # The width and the height of the image
+&lt;&#x2F;span&gt;&lt;span&gt;15  # The maximum byte size, followed by the raster
+&lt;&#x2F;span&gt;&lt;span&gt; 0  0  0    0  0  0    0  0  0   15  0 15
+&lt;&#x2F;span&gt;&lt;span&gt; 0  0  0    0 15  7    0  0  0    0  0  0
+&lt;&#x2F;span&gt;&lt;span&gt; 0  0  0    0  0  0    0 15  7    0  0  0
+&lt;&#x2F;span&gt;&lt;span&gt;15  0 15    0  0  0    0  0  0    0  0  0
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Conveniently, the format supports &lt;code&gt;#&lt;&#x2F;code&gt; comments, which will come in handy later.&lt;&#x2F;p&gt;
+&lt;h3 id=&quot;let-s-get-parsing&quot;&gt;Let&#x27;s get parsing&lt;&#x2F;h3&gt;
+&lt;p&gt;The idea is to leave the header portion of the file intact, and to encrypt only the actual data.
+This lets us open the image and view it - if we were to encrypt the entire file, that would also include the header,
+meaning your computer will have a hard time understanding what kind of file it is.&lt;&#x2F;p&gt;
+&lt;p&gt;Let&#x27;s model the structure:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#ffffff;color:#4d4d4c;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span&gt;#[&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c82829;&quot;&gt;derive&lt;&#x2F;span&gt;&lt;span&gt;(Debug)]
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;pub enum &lt;&#x2F;span&gt;&lt;span&gt;MagicNumber {
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#999999;&quot;&gt;&#x2F;&#x2F;&#x2F; Indicates ASCII data
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#666969;&quot;&gt;P3&lt;&#x2F;span&gt;&lt;span&gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#999999;&quot;&gt;&#x2F;&#x2F;&#x2F; Indicates binary data
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#666969;&quot;&gt;P6&lt;&#x2F;span&gt;&lt;span&gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;#[&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c82829;&quot;&gt;derive&lt;&#x2F;span&gt;&lt;span&gt;(Debug)]
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;pub struct &lt;&#x2F;span&gt;&lt;span&gt;PpmHeader {
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c82829;&quot;&gt;magic_number&lt;&#x2F;span&gt;&lt;span&gt;: MagicNumber,
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;pub &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c82829;&quot;&gt;width&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;usize&lt;&#x2F;span&gt;&lt;span&gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;pub &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c82829;&quot;&gt;height&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;usize&lt;&#x2F;span&gt;&lt;span&gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;pub &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c82829;&quot;&gt;max_val&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;usize&lt;&#x2F;span&gt;&lt;span&gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;pub &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c82829;&quot;&gt;end&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;usize&lt;&#x2F;span&gt;&lt;span&gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;#[&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c82829;&quot;&gt;derive&lt;&#x2F;span&gt;&lt;span&gt;(Debug)]
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;pub struct &lt;&#x2F;span&gt;&lt;span&gt;Ppm {
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;pub &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c82829;&quot;&gt;header&lt;&#x2F;span&gt;&lt;span&gt;: PpmHeader,
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;pub &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c82829;&quot;&gt;data&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c99e00;&quot;&gt;Vec&lt;&#x2F;span&gt;&lt;span&gt;&amp;lt;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;u8&lt;&#x2F;span&gt;&lt;span&gt;&amp;gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;I&#x27;ve included &lt;code&gt;end&lt;&#x2F;code&gt; to keep track of the offset delimiting the end of the header.
+Now we&#x27;ll want to add some parsing logic for the header:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#ffffff;color:#4d4d4c;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;impl &lt;&#x2F;span&gt;&lt;span&gt;PpmHeader {
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;pub fn &lt;&#x2F;span&gt;&lt;span style=&quot;color:#4271ae;&quot;&gt;from_str&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#f5871f;&quot;&gt;text&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;str&lt;&#x2F;span&gt;&lt;span&gt;) -&amp;gt; color_eyre::&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c99e00;&quot;&gt;Result&lt;&#x2F;span&gt;&lt;span&gt;&amp;lt;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;Self&lt;&#x2F;span&gt;&lt;span&gt;&amp;gt; {
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;let mut&lt;&#x2F;span&gt;&lt;span&gt; tokens &lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; text
+&lt;&#x2F;span&gt;&lt;span&gt;            .&lt;&#x2F;span&gt;&lt;span style=&quot;color:#4271ae;&quot;&gt;lines&lt;&#x2F;span&gt;&lt;span&gt;()
+&lt;&#x2F;span&gt;&lt;span&gt;            .&lt;&#x2F;span&gt;&lt;span style=&quot;color:#4271ae;&quot;&gt;filter_map&lt;&#x2F;span&gt;&lt;span&gt;(|&lt;&#x2F;span&gt;&lt;span style=&quot;color:#f5871f;&quot;&gt;line&lt;&#x2F;span&gt;&lt;span&gt;| {
+&lt;&#x2F;span&gt;&lt;span&gt;                &lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;let&lt;&#x2F;span&gt;&lt;span&gt; line &lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; line.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#4271ae;&quot;&gt;trim&lt;&#x2F;span&gt;&lt;span&gt;();
+&lt;&#x2F;span&gt;&lt;span&gt;                &lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;if&lt;&#x2F;span&gt;&lt;span&gt; line.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#4271ae;&quot;&gt;starts_with&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#718c00;&quot;&gt;&amp;#39;#&amp;#39;&lt;&#x2F;span&gt;&lt;span&gt;) {
+&lt;&#x2F;span&gt;&lt;span&gt;                    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c99e00;&quot;&gt;None
+&lt;&#x2F;span&gt;&lt;span&gt;                } &lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;else &lt;&#x2F;span&gt;&lt;span&gt;{
+&lt;&#x2F;span&gt;&lt;span&gt;                    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c99e00;&quot;&gt;Some&lt;&#x2F;span&gt;&lt;span&gt;(
+&lt;&#x2F;span&gt;&lt;span&gt;                        line.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#4271ae;&quot;&gt;split_whitespace&lt;&#x2F;span&gt;&lt;span&gt;()
+&lt;&#x2F;span&gt;&lt;span&gt;                            .&lt;&#x2F;span&gt;&lt;span style=&quot;color:#4271ae;&quot;&gt;take_while&lt;&#x2F;span&gt;&lt;span&gt;(|&lt;&#x2F;span&gt;&lt;span style=&quot;color:#f5871f;&quot;&gt;token&lt;&#x2F;span&gt;&lt;span&gt;| &lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;!&lt;&#x2F;span&gt;&lt;span&gt;token.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#4271ae;&quot;&gt;starts_with&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#718c00;&quot;&gt;&amp;#39;#&amp;#39;&lt;&#x2F;span&gt;&lt;span&gt;)),
+&lt;&#x2F;span&gt;&lt;span&gt;                    )
+&lt;&#x2F;span&gt;&lt;span&gt;                }
+&lt;&#x2F;span&gt;&lt;span&gt;            })
+&lt;&#x2F;span&gt;&lt;span&gt;            .&lt;&#x2F;span&gt;&lt;span style=&quot;color:#4271ae;&quot;&gt;flatten&lt;&#x2F;span&gt;&lt;span&gt;();
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;let&lt;&#x2F;span&gt;&lt;span&gt; magic_number &lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;=
+&lt;&#x2F;span&gt;&lt;span&gt;            MagicNumber::from_str(tokens.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#4271ae;&quot;&gt;next&lt;&#x2F;span&gt;&lt;span&gt;().&lt;&#x2F;span&gt;&lt;span style=&quot;color:#4271ae;&quot;&gt;ok_or_else&lt;&#x2F;span&gt;&lt;span&gt;(|| eyre!(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#718c00;&quot;&gt;&amp;quot;Missing identifier&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;))&lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;?&lt;&#x2F;span&gt;&lt;span&gt;)&lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;?&lt;&#x2F;span&gt;&lt;span&gt;;
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#999999;&quot;&gt;&#x2F;&#x2F; More parsing...
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c99e00;&quot;&gt;Ok&lt;&#x2F;span&gt;&lt;span&gt;(PpmHeader {
+&lt;&#x2F;span&gt;&lt;span&gt;            magic_number,
+&lt;&#x2F;span&gt;&lt;span&gt;            width,
+&lt;&#x2F;span&gt;&lt;span&gt;            height,
+&lt;&#x2F;span&gt;&lt;span&gt;            max_val,
+&lt;&#x2F;span&gt;&lt;span&gt;            end,
+&lt;&#x2F;span&gt;&lt;span&gt;        })
+&lt;&#x2F;span&gt;&lt;span&gt;    }
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;And putting it all together, i.e. parsing the whole file including header and data:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#ffffff;color:#4d4d4c;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;impl &lt;&#x2F;span&gt;&lt;span&gt;Ppm {
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;pub fn &lt;&#x2F;span&gt;&lt;span style=&quot;color:#4271ae;&quot;&gt;from_file&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#f5871f;&quot;&gt;file&lt;&#x2F;span&gt;&lt;span&gt;: impl &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c99e00;&quot;&gt;AsRef&lt;&#x2F;span&gt;&lt;span&gt;&amp;lt;Path&amp;gt;) -&amp;gt; color_eyre::&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c99e00;&quot;&gt;Result&lt;&#x2F;span&gt;&lt;span&gt;&amp;lt;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;Self&lt;&#x2F;span&gt;&lt;span&gt;&amp;gt; {
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;let mut&lt;&#x2F;span&gt;&lt;span&gt; file &lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span&gt;File::open(file)&lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;?&lt;&#x2F;span&gt;&lt;span&gt;;
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;let mut&lt;&#x2F;span&gt;&lt;span&gt; buffer &lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c99e00;&quot;&gt;Vec&lt;&#x2F;span&gt;&lt;span&gt;::new();
+&lt;&#x2F;span&gt;&lt;span&gt;        file.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#4271ae;&quot;&gt;read_to_end&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;mut&lt;&#x2F;span&gt;&lt;span&gt; buffer)&lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;?&lt;&#x2F;span&gt;&lt;span&gt;;
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#999999;&quot;&gt;&#x2F;&#x2F; Turn the bytes into text
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;let&lt;&#x2F;span&gt;&lt;span&gt; image_text &lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c99e00;&quot;&gt;String&lt;&#x2F;span&gt;&lt;span&gt;::from_utf8_lossy(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span&gt;buffer);
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#999999;&quot;&gt;&#x2F;&#x2F; Parse the header
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;let&lt;&#x2F;span&gt;&lt;span&gt; header &lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span&gt;PpmHeader::from_str(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span&gt;image_text)&lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;?&lt;&#x2F;span&gt;&lt;span&gt;;
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;let&lt;&#x2F;span&gt;&lt;span&gt; start_offset &lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; image_text[header.end&lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;..&lt;&#x2F;span&gt;&lt;span&gt;]
+&lt;&#x2F;span&gt;&lt;span&gt;            .&lt;&#x2F;span&gt;&lt;span style=&quot;color:#4271ae;&quot;&gt;find&lt;&#x2F;span&gt;&lt;span&gt;(|&lt;&#x2F;span&gt;&lt;span style=&quot;color:#f5871f;&quot;&gt;c&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;char&lt;&#x2F;span&gt;&lt;span&gt;| &lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;!&lt;&#x2F;span&gt;&lt;span&gt;c.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#4271ae;&quot;&gt;is_whitespace&lt;&#x2F;span&gt;&lt;span&gt;())
+&lt;&#x2F;span&gt;&lt;span&gt;            .&lt;&#x2F;span&gt;&lt;span style=&quot;color:#4271ae;&quot;&gt;map&lt;&#x2F;span&gt;&lt;span&gt;(|&lt;&#x2F;span&gt;&lt;span style=&quot;color:#f5871f;&quot;&gt;i&lt;&#x2F;span&gt;&lt;span&gt;| header.end &lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;+&lt;&#x2F;span&gt;&lt;span&gt; i)
+&lt;&#x2F;span&gt;&lt;span&gt;            .&lt;&#x2F;span&gt;&lt;span style=&quot;color:#4271ae;&quot;&gt;ok_or_else&lt;&#x2F;span&gt;&lt;span&gt;(|| eyre!(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#718c00;&quot;&gt;&amp;quot;Could not find start of pixel data&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;))&lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;?&lt;&#x2F;span&gt;&lt;span&gt;;
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;let&lt;&#x2F;span&gt;&lt;span&gt; data &lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;match&lt;&#x2F;span&gt;&lt;span&gt; header.magic_number {
+&lt;&#x2F;span&gt;&lt;span&gt;            &lt;&#x2F;span&gt;&lt;span style=&quot;color:#999999;&quot;&gt;&#x2F;&#x2F; Deserialize the data: if the magic number is P3, split by whitespace
+&lt;&#x2F;span&gt;&lt;span&gt;            &lt;&#x2F;span&gt;&lt;span style=&quot;color:#999999;&quot;&gt;&#x2F;&#x2F; and parse each number into an unsigned 8-bit integer
+&lt;&#x2F;span&gt;&lt;span&gt;            MagicNumber::&lt;&#x2F;span&gt;&lt;span style=&quot;color:#666969;&quot;&gt;P3 &lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;=&amp;gt; &lt;&#x2F;span&gt;&lt;span&gt;{
+&lt;&#x2F;span&gt;&lt;span&gt;                &lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;let&lt;&#x2F;span&gt;&lt;span&gt; ascii_data &lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;= &amp;amp;&lt;&#x2F;span&gt;&lt;span&gt;image_text[start_offset&lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;..&lt;&#x2F;span&gt;&lt;span&gt;];
+&lt;&#x2F;span&gt;&lt;span&gt;                ascii_data
+&lt;&#x2F;span&gt;&lt;span&gt;                    .&lt;&#x2F;span&gt;&lt;span style=&quot;color:#4271ae;&quot;&gt;split_whitespace&lt;&#x2F;span&gt;&lt;span&gt;()
+&lt;&#x2F;span&gt;&lt;span&gt;                    .&lt;&#x2F;span&gt;&lt;span style=&quot;color:#4271ae;&quot;&gt;map&lt;&#x2F;span&gt;&lt;span&gt;(|&lt;&#x2F;span&gt;&lt;span style=&quot;color:#f5871f;&quot;&gt;s&lt;&#x2F;span&gt;&lt;span&gt;| s.parse::&amp;lt;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;u8&lt;&#x2F;span&gt;&lt;span&gt;&amp;gt;())
+&lt;&#x2F;span&gt;&lt;span&gt;                    .collect::&amp;lt;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c99e00;&quot;&gt;Result&lt;&#x2F;span&gt;&lt;span&gt;&amp;lt;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c99e00;&quot;&gt;Vec&lt;&#x2F;span&gt;&lt;span&gt;&amp;lt;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;u8&lt;&#x2F;span&gt;&lt;span&gt;&amp;gt;, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;_&lt;&#x2F;span&gt;&lt;span&gt;&amp;gt;&amp;gt;()&lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;?
+&lt;&#x2F;span&gt;&lt;span&gt;            }
+&lt;&#x2F;span&gt;&lt;span&gt;            &lt;&#x2F;span&gt;&lt;span style=&quot;color:#999999;&quot;&gt;&#x2F;&#x2F; Otherwise, if the magic number is P6, store the raw bytes
+&lt;&#x2F;span&gt;&lt;span&gt;            MagicNumber::&lt;&#x2F;span&gt;&lt;span style=&quot;color:#666969;&quot;&gt;P6 &lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;=&amp;gt;&lt;&#x2F;span&gt;&lt;span&gt; buffer[start_offset&lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;..&lt;&#x2F;span&gt;&lt;span&gt;].&lt;&#x2F;span&gt;&lt;span style=&quot;color:#4271ae;&quot;&gt;to_vec&lt;&#x2F;span&gt;&lt;span&gt;(),
+&lt;&#x2F;span&gt;&lt;span&gt;        };
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c99e00;&quot;&gt;Ok&lt;&#x2F;span&gt;&lt;span&gt;(Ppm { header, data })
+&lt;&#x2F;span&gt;&lt;span&gt;    }
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;So far so good. This allows us to call &lt;code&gt;Pnpm::from_file&lt;&#x2F;code&gt; and have a struct holding the header and the actual byte data of the image.&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#ffffff;color:#4d4d4c;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;let mut&lt;&#x2F;span&gt;&lt;span&gt; image &lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span&gt;Ppm::from_file(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span&gt;file)&lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;?&lt;&#x2F;span&gt;&lt;span&gt;;
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;h3 id=&quot;encrypting-with-a-user-provided-passphrase&quot;&gt;Encrypting with a user-provided passphrase&lt;&#x2F;h3&gt;
+&lt;p&gt;AES requires a key of 128-bytes for its encryption algorithm, though you could also use variants of AES that accept longer keys.
+Ask any human to produce a key of that length, and you&#x27;ll be met with a blank stare.
+Fortunately, password-based &lt;a href=&quot;https:&#x2F;&#x2F;en.wikipedia.org&#x2F;wiki&#x2F;Key_derivation_function&quot;&gt;key derivation functions&lt;&#x2F;a&gt; exist: given a password, they produce a sequence of bytes which can be used as an encryption key.&lt;&#x2F;p&gt;
+&lt;p&gt;Given how insecure ECB is, you may be tempted to think that using a really strong key, generated with a sophisticated key derivation
+function, might provide enough security. You&#x27;d be sorely mistaken.&lt;&#x2F;p&gt;
+&lt;p&gt;Let&#x27;s see why that is the case.
+I&#x27;ve picked &lt;a href=&quot;https:&#x2F;&#x2F;en.wikipedia.org&#x2F;wiki&#x2F;Argon2&quot;&gt;Argon2&lt;&#x2F;a&gt; for this example, which is widely considered one of the best password-hashing functions due to its properties (memory hardness, among others). It requires a salt as part of the input, so that two encryption keys derived from the same passphrase (but crucially, from two different salts) result in different outputs.&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#ffffff;color:#4d4d4c;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span style=&quot;color:#999999;&quot;&gt;&#x2F;&#x2F; Create a 16-byte-long buffer, which is Argon2&amp;#39;s recommended length for a salt
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;let mut&lt;&#x2F;span&gt;&lt;span&gt; salt &lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span&gt;[&lt;&#x2F;span&gt;&lt;span style=&quot;color:#f5871f;&quot;&gt;0&lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;u8&lt;&#x2F;span&gt;&lt;span&gt;; Salt::&lt;&#x2F;span&gt;&lt;span style=&quot;color:#666969;&quot;&gt;RECOMMENDED_LENGTH&lt;&#x2F;span&gt;&lt;span&gt;];
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#999999;&quot;&gt;&#x2F;&#x2F; Fill the buffer with random bytes from the operating system
+&lt;&#x2F;span&gt;&lt;span&gt;OsRng.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#4271ae;&quot;&gt;fill_bytes&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;mut&lt;&#x2F;span&gt;&lt;span&gt; salt);
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#999999;&quot;&gt;&#x2F;&#x2F; Create a 32-byte buffer to use as the encryption key
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;let mut&lt;&#x2F;span&gt;&lt;span&gt; output_key_material &lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span&gt;[&lt;&#x2F;span&gt;&lt;span style=&quot;color:#f5871f;&quot;&gt;0&lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;u8&lt;&#x2F;span&gt;&lt;span&gt;; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#f5871f;&quot;&gt;32&lt;&#x2F;span&gt;&lt;span&gt;];
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#999999;&quot;&gt;&#x2F;&#x2F; ...and fill it with bytes created by the Argon2 function using
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#999999;&quot;&gt;&#x2F;&#x2F; &amp;quot;i-have-eaten-the-plums-that-were-in-the-icebox&amp;quot; as the passphrase,
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#999999;&quot;&gt;&#x2F;&#x2F; which is arguably more memorable than a sequence of 32 random-looking bytes
+&lt;&#x2F;span&gt;&lt;span&gt;Argon2::default()
+&lt;&#x2F;span&gt;&lt;span&gt;    .&lt;&#x2F;span&gt;&lt;span style=&quot;color:#4271ae;&quot;&gt;hash_password_into&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;b&lt;&#x2F;span&gt;&lt;span style=&quot;color:#718c00;&quot;&gt;&amp;quot;i-have-eaten-the-plums-that-were-in-the-icebox&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span&gt;salt, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;mut&lt;&#x2F;span&gt;&lt;span&gt; output_key_material)
+&lt;&#x2F;span&gt;&lt;span&gt;    .&lt;&#x2F;span&gt;&lt;span style=&quot;color:#4271ae;&quot;&gt;unwrap&lt;&#x2F;span&gt;&lt;span&gt;();
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;We now have all the elements to encrypt our penguin. Let&#x27;s add a method to the &lt;code&gt;Ppm&lt;&#x2F;code&gt; implementation:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#ffffff;color:#4d4d4c;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;impl &lt;&#x2F;span&gt;&lt;span&gt;Ppm {
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#999999;&quot;&gt;&#x2F;&#x2F; ...other methods
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#999999;&quot;&gt;&#x2F;&#x2F;&#x2F; Encrypts the data using AES256-ECB.
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#999999;&quot;&gt;&#x2F;&#x2F;&#x2F; For demonstration purposes only!
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;pub fn &lt;&#x2F;span&gt;&lt;span style=&quot;color:#4271ae;&quot;&gt;encrypt_with_aes_ecb&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;mut &lt;&#x2F;span&gt;&lt;span style=&quot;color:#f5871f;&quot;&gt;self&lt;&#x2F;span&gt;&lt;span&gt;, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#f5871f;&quot;&gt;cipher&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span&gt;Aes256) {
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;const &lt;&#x2F;span&gt;&lt;span style=&quot;color:#666969;&quot;&gt;BLOCK_SIZE&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;usize &lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span style=&quot;color:#f5871f;&quot;&gt;16&lt;&#x2F;span&gt;&lt;span&gt;;
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;let&lt;&#x2F;span&gt;&lt;span&gt; padding &lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span style=&quot;color:#666969;&quot;&gt;BLOCK_SIZE &lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;- &lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c82829;&quot;&gt;self&lt;&#x2F;span&gt;&lt;span&gt;.data.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#4271ae;&quot;&gt;len&lt;&#x2F;span&gt;&lt;span&gt;() &lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;% &lt;&#x2F;span&gt;&lt;span style=&quot;color:#666969;&quot;&gt;BLOCK_SIZE&lt;&#x2F;span&gt;&lt;span&gt;);
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c82829;&quot;&gt;self&lt;&#x2F;span&gt;&lt;span&gt;.data.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#4271ae;&quot;&gt;extend&lt;&#x2F;span&gt;&lt;span&gt;(vec![padding &lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;as &lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;u8&lt;&#x2F;span&gt;&lt;span&gt;; padding]);
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;for&lt;&#x2F;span&gt;&lt;span&gt; chunk &lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;in &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c82829;&quot;&gt;self&lt;&#x2F;span&gt;&lt;span&gt;.data.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#4271ae;&quot;&gt;chunks_exact_mut&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#666969;&quot;&gt;BLOCK_SIZE&lt;&#x2F;span&gt;&lt;span&gt;) {
+&lt;&#x2F;span&gt;&lt;span&gt;            cipher.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#4271ae;&quot;&gt;encrypt_block&lt;&#x2F;span&gt;&lt;span&gt;(GenericArray::from_mut_slice(chunk));
+&lt;&#x2F;span&gt;&lt;span&gt;        }
+&lt;&#x2F;span&gt;&lt;span&gt;    }
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;As indicated by &lt;code&gt;&amp;amp;mut self&lt;&#x2F;code&gt; in the signature, this will mutate the original data stored in the struct.&lt;&#x2F;p&gt;
+&lt;p&gt;All that&#x27;s left to do is writing a function to dump the bytes to disk:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#ffffff;color:#4d4d4c;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;impl &lt;&#x2F;span&gt;&lt;span&gt;Ppm {
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#999999;&quot;&gt;&#x2F;&#x2F; ...other methods
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;pub fn &lt;&#x2F;span&gt;&lt;span style=&quot;color:#4271ae;&quot;&gt;write_to_disk&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#f5871f;&quot;&gt;self&lt;&#x2F;span&gt;&lt;span&gt;, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#f5871f;&quot;&gt;path&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span&gt;Path) -&amp;gt; color_eyre::&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c99e00;&quot;&gt;Result&lt;&#x2F;span&gt;&lt;span&gt;&amp;lt;()&amp;gt; {
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;let mut&lt;&#x2F;span&gt;&lt;span&gt; buf: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c99e00;&quot;&gt;Vec&lt;&#x2F;span&gt;&lt;span&gt;&amp;lt;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;u8&lt;&#x2F;span&gt;&lt;span&gt;&amp;gt; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c99e00;&quot;&gt;Vec&lt;&#x2F;span&gt;&lt;span&gt;::new();
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;        writeln!(&amp;amp;mut buf, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#718c00;&quot;&gt;&amp;quot;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#666969;&quot;&gt;{}&lt;&#x2F;span&gt;&lt;span style=&quot;color:#718c00;&quot;&gt;&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;, MagicNumber::&lt;&#x2F;span&gt;&lt;span style=&quot;color:#666969;&quot;&gt;P6&lt;&#x2F;span&gt;&lt;span&gt;)&lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;?&lt;&#x2F;span&gt;&lt;span&gt;;
+&lt;&#x2F;span&gt;&lt;span&gt;        writeln!(&amp;amp;mut buf, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#718c00;&quot;&gt;&amp;quot;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#666969;&quot;&gt;{} {}&lt;&#x2F;span&gt;&lt;span style=&quot;color:#718c00;&quot;&gt;&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c82829;&quot;&gt;self&lt;&#x2F;span&gt;&lt;span&gt;.header.width, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c82829;&quot;&gt;self&lt;&#x2F;span&gt;&lt;span&gt;.header.height)&lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;?&lt;&#x2F;span&gt;&lt;span&gt;;
+&lt;&#x2F;span&gt;&lt;span&gt;        writeln!(&amp;amp;mut buf, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#718c00;&quot;&gt;&amp;quot;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#666969;&quot;&gt;{}&lt;&#x2F;span&gt;&lt;span style=&quot;color:#718c00;&quot;&gt;&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c82829;&quot;&gt;self&lt;&#x2F;span&gt;&lt;span&gt;.header.max_val)&lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;?&lt;&#x2F;span&gt;&lt;span&gt;;
+&lt;&#x2F;span&gt;&lt;span&gt;        buf.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#4271ae;&quot;&gt;extend_from_slice&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c82829;&quot;&gt;self&lt;&#x2F;span&gt;&lt;span&gt;.data);
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;        fs::write(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span&gt;path, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span&gt;buf)&lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;?&lt;&#x2F;span&gt;&lt;span&gt;;
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c99e00;&quot;&gt;Ok&lt;&#x2F;span&gt;&lt;span&gt;(())
+&lt;&#x2F;span&gt;&lt;span&gt;    }
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;And here is the result...&lt;&#x2F;p&gt;
+&lt;img src=&quot;&#x2F;images&#x2F;Tux.ecb.encrypted.png&quot;&gt;
+&lt;p&gt;Even with a 256-bit key generated with Argon2, &lt;strong&gt;AES-ECB is still insecure. You can stil see the penguin&lt;&#x2F;strong&gt;.&lt;&#x2F;p&gt;
+&lt;h3 id=&quot;what-about-decryption&quot;&gt;What about decryption?&lt;&#x2F;h3&gt;
+&lt;p&gt;We could stop here, but let&#x27;s write a decryption function for the sake of completeness.&lt;&#x2F;p&gt;
+&lt;p&gt;You will recall that a successful decryption can only occur if the same encryption key is used for decryption.
+However, the Argon2-derived key was generated with a random salt, and the same salt &lt;strong&gt;must&lt;&#x2F;strong&gt; be used in order to produce the same key.
+This means the salt must be stored &lt;em&gt;somewhere&lt;&#x2F;em&gt;. What better place than the PPM file header itself?&lt;&#x2F;p&gt;
+&lt;p&gt;The PPM format conveniently allows comments in the header: anything following the &lt;code&gt;#&lt;&#x2F;code&gt; character is treated as a comment.
+We can leverage that to our advantage by storing the salt in the header, and updating the Rust code accordingly when reading from&#x2F;writing to disk.&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#ffffff;color:#4d4d4c;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span&gt;#[&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c82829;&quot;&gt;derive&lt;&#x2F;span&gt;&lt;span&gt;(Debug)]
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;pub struct &lt;&#x2F;span&gt;&lt;span&gt;PpmHeader {
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c82829;&quot;&gt;magic_number&lt;&#x2F;span&gt;&lt;span&gt;: MagicNumber,
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;pub &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c82829;&quot;&gt;width&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;usize&lt;&#x2F;span&gt;&lt;span&gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;pub &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c82829;&quot;&gt;height&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;usize&lt;&#x2F;span&gt;&lt;span&gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;pub &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c82829;&quot;&gt;max_val&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;usize&lt;&#x2F;span&gt;&lt;span&gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;pub &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c82829;&quot;&gt;end&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;usize&lt;&#x2F;span&gt;&lt;span&gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#999999;&quot;&gt;&#x2F;&#x2F; Store the salt here
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;pub &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c82829;&quot;&gt;salt&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c99e00;&quot;&gt;Option&lt;&#x2F;span&gt;&lt;span&gt;&amp;lt;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c99e00;&quot;&gt;Vec&lt;&#x2F;span&gt;&lt;span&gt;&amp;lt;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;u8&lt;&#x2F;span&gt;&lt;span&gt;&amp;gt;&amp;gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Storing the salt as part of the file is not a security risk. In fact, &lt;a href=&quot;https:&#x2F;&#x2F;www.zetetic.net&#x2F;sqlcipher&#x2F;&quot;&gt;SQLCipher&lt;&#x2F;a&gt;, an encrypted version of SQLite, stores the salt as the first 16 bytes of the database file!
+Note that I chose to represent the salt bytes in hexadecimal notation, but any encoding will do.&lt;&#x2F;p&gt;
+&lt;pre style=&quot;background-color:#ffffff;color:#4d4d4c;&quot;&gt;&lt;code&gt;&lt;span&gt;$ head -n4 Tux.encrypted.ppm
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;P6
+&lt;&#x2F;span&gt;&lt;span&gt;265 314
+&lt;&#x2F;span&gt;&lt;span&gt;# salt a35211ebcbc5ccca063910c61d54deaa
+&lt;&#x2F;span&gt;&lt;span&gt;255
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;h3 id=&quot;all-of-this-is-useless-ecb-is-still-bad-can-we-do-better&quot;&gt;All of this is useless, ECB is still bad! Can we do better?&lt;&#x2F;h3&gt;
+&lt;p&gt;We can use GCM instead.
+GCM stands for &lt;a href=&quot;https:&#x2F;&#x2F;en.wikipedia.org&#x2F;wiki&#x2F;Galois&#x2F;Counter_Mode&quot;&gt;Galois&#x2F;Counter Mode&lt;&#x2F;a&gt;, and effectively turns the block cipher into a &lt;a href=&quot;https:&#x2F;&#x2F;en.wikipedia.org&#x2F;wiki&#x2F;Stream_cipher&quot;&gt;stream cipher&lt;&#x2F;a&gt;.&lt;&#x2F;p&gt;
+&lt;p&gt;The math behind GCM is very complicated, but it comes with extremely useful properties: it uses a counter internally, meaning that the same block encrypted twice will produce a different result. This conveniently solves the pattern leakage issue that ECB suffers from.&lt;&#x2F;p&gt;
+&lt;p&gt;It also provides &lt;em&gt;authenticated encryption&lt;&#x2F;em&gt;, which is an encryption scheme that makes the ciphertext tamper-resistant. It achieves this by producing an authentication tag, so that the integrity of the message is also verified during decryption. In other words, if any bytes of the ciphertext bytes were altered, decryption would not succeed.&lt;&#x2F;p&gt;
+&lt;p&gt;This makes it an ideal candidate for a large number of use cases. Chances are you&#x27;ve been using AES-GCM without even realising.
+AWS, for example, uses it to &lt;a href=&quot;https:&#x2F;&#x2F;docs.aws.amazon.com&#x2F;AmazonS3&#x2F;latest&#x2F;userguide&#x2F;UsingServerSideEncryption.html&quot;&gt;encrypt S3 files&lt;&#x2F;a&gt; at rest, and it&#x27;s also commonly used in Wi-Fi communication protocols.
+Generally speaking, AES is so ubiquitous that modern CPUs include special instructions to perform its operations as quickly and efficiently as possible.&lt;&#x2F;p&gt;
+&lt;p&gt;Let&#x27;s put it to the test.
+AES-GCM requires a &lt;em&gt;nonce&lt;&#x2F;em&gt; (number used once) to produce a unique keystream. We&#x27;ll also need to keep track of the nonce for decryption purposes, so let&#x27;s change the structure of our PPM header:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#ffffff;color:#4d4d4c;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span&gt;#[&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c82829;&quot;&gt;derive&lt;&#x2F;span&gt;&lt;span&gt;(Debug)]
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;pub struct &lt;&#x2F;span&gt;&lt;span&gt;PpmHeader {
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c82829;&quot;&gt;magic_number&lt;&#x2F;span&gt;&lt;span&gt;: MagicNumber,
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;pub &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c82829;&quot;&gt;width&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;usize&lt;&#x2F;span&gt;&lt;span&gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;pub &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c82829;&quot;&gt;height&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;usize&lt;&#x2F;span&gt;&lt;span&gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;pub &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c82829;&quot;&gt;max_val&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;usize&lt;&#x2F;span&gt;&lt;span&gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;pub &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c82829;&quot;&gt;end&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;usize&lt;&#x2F;span&gt;&lt;span&gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;pub &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c82829;&quot;&gt;salt&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c99e00;&quot;&gt;Option&lt;&#x2F;span&gt;&lt;span&gt;&amp;lt;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c99e00;&quot;&gt;Vec&lt;&#x2F;span&gt;&lt;span&gt;&amp;lt;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;u8&lt;&#x2F;span&gt;&lt;span&gt;&amp;gt;&amp;gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#999999;&quot;&gt;&#x2F;&#x2F; Let&amp;#39;s store the nonce here
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;pub &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c82829;&quot;&gt;nonce&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c99e00;&quot;&gt;Option&lt;&#x2F;span&gt;&lt;span&gt;&amp;lt;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c99e00;&quot;&gt;Vec&lt;&#x2F;span&gt;&lt;span&gt;&amp;lt;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;u8&lt;&#x2F;span&gt;&lt;span&gt;&amp;gt;&amp;gt;,
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Of course, we still need to generate an encryption key; we can derive one with Argon2, as above.&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#ffffff;color:#4d4d4c;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;let mut&lt;&#x2F;span&gt;&lt;span&gt; salt &lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span&gt;[&lt;&#x2F;span&gt;&lt;span style=&quot;color:#f5871f;&quot;&gt;0&lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;u8&lt;&#x2F;span&gt;&lt;span&gt;; Salt::&lt;&#x2F;span&gt;&lt;span style=&quot;color:#666969;&quot;&gt;RECOMMENDED_LENGTH&lt;&#x2F;span&gt;&lt;span&gt;];
+&lt;&#x2F;span&gt;&lt;span&gt;OsRng.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#4271ae;&quot;&gt;fill_bytes&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;mut&lt;&#x2F;span&gt;&lt;span&gt; salt);
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;image.header.salt &lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c99e00;&quot;&gt;Some&lt;&#x2F;span&gt;&lt;span&gt;(salt.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#4271ae;&quot;&gt;to_vec&lt;&#x2F;span&gt;&lt;span&gt;());
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;let mut&lt;&#x2F;span&gt;&lt;span&gt; output_key_material &lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span&gt;[&lt;&#x2F;span&gt;&lt;span style=&quot;color:#f5871f;&quot;&gt;0&lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;u8&lt;&#x2F;span&gt;&lt;span&gt;; &lt;&#x2F;span&gt;&lt;span style=&quot;color:#f5871f;&quot;&gt;32&lt;&#x2F;span&gt;&lt;span&gt;];
+&lt;&#x2F;span&gt;&lt;span&gt;Argon2::default()
+&lt;&#x2F;span&gt;&lt;span&gt;    .&lt;&#x2F;span&gt;&lt;span style=&quot;color:#4271ae;&quot;&gt;hash_password_into&lt;&#x2F;span&gt;&lt;span&gt;(key.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#4271ae;&quot;&gt;as_bytes&lt;&#x2F;span&gt;&lt;span&gt;(), &lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span&gt;salt, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;mut&lt;&#x2F;span&gt;&lt;span&gt; output_key_material)
+&lt;&#x2F;span&gt;&lt;span&gt;    .&lt;&#x2F;span&gt;&lt;span style=&quot;color:#4271ae;&quot;&gt;unwrap&lt;&#x2F;span&gt;&lt;span&gt;();
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;let&lt;&#x2F;span&gt;&lt;span&gt; cipher &lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span&gt;Aes256Gcm::new(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span&gt;GenericArray::from_slice(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span&gt;output_key_material));
+&lt;&#x2F;span&gt;&lt;span&gt;image.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#4271ae;&quot;&gt;encrypt_with_aes_gcm&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span&gt;cipher)&lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;?&lt;&#x2F;span&gt;&lt;span&gt;;
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;And here is the &lt;code&gt;encrypt_with_aes_gcm&lt;&#x2F;code&gt; function:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#ffffff;color:#4d4d4c;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;impl &lt;&#x2F;span&gt;&lt;span&gt;Ppm {
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#999999;&quot;&gt;&#x2F;&#x2F; ...other methods
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;pub fn &lt;&#x2F;span&gt;&lt;span style=&quot;color:#4271ae;&quot;&gt;encrypt_with_aes_gcm&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;mut &lt;&#x2F;span&gt;&lt;span style=&quot;color:#f5871f;&quot;&gt;self&lt;&#x2F;span&gt;&lt;span&gt;, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#f5871f;&quot;&gt;cipher&lt;&#x2F;span&gt;&lt;span&gt;: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span&gt;Aes256Gcm) -&amp;gt; color_eyre::&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c99e00;&quot;&gt;Result&lt;&#x2F;span&gt;&lt;span&gt;&amp;lt;()&amp;gt; {
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;let&lt;&#x2F;span&gt;&lt;span&gt; nonce &lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span&gt;Aes256Gcm::generate_nonce(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;mut&lt;&#x2F;span&gt;&lt;span&gt; OsRng);
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c82829;&quot;&gt;self&lt;&#x2F;span&gt;&lt;span&gt;.header.nonce &lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;= &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c99e00;&quot;&gt;Some&lt;&#x2F;span&gt;&lt;span&gt;(nonce.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#4271ae;&quot;&gt;to_vec&lt;&#x2F;span&gt;&lt;span&gt;());
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#8959a8;&quot;&gt;let&lt;&#x2F;span&gt;&lt;span&gt; ciphertext &lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; cipher
+&lt;&#x2F;span&gt;&lt;span&gt;            .&lt;&#x2F;span&gt;&lt;span style=&quot;color:#4271ae;&quot;&gt;encrypt&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;&amp;amp;&lt;&#x2F;span&gt;&lt;span&gt;nonce, &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c82829;&quot;&gt;self&lt;&#x2F;span&gt;&lt;span&gt;.data.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#4271ae;&quot;&gt;as_slice&lt;&#x2F;span&gt;&lt;span&gt;())
+&lt;&#x2F;span&gt;&lt;span&gt;            .&lt;&#x2F;span&gt;&lt;span style=&quot;color:#4271ae;&quot;&gt;map_err&lt;&#x2F;span&gt;&lt;span&gt;(|&lt;&#x2F;span&gt;&lt;span style=&quot;color:#f5871f;&quot;&gt;e&lt;&#x2F;span&gt;&lt;span&gt;| eyre!(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#718c00;&quot;&gt;&amp;quot;AES-GCM encryption error: {:?}&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;, e))&lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;?&lt;&#x2F;span&gt;&lt;span&gt;;
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c82829;&quot;&gt;self&lt;&#x2F;span&gt;&lt;span&gt;.data &lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span&gt; ciphertext;
+&lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#c99e00;&quot;&gt;Ok&lt;&#x2F;span&gt;&lt;span&gt;(())
+&lt;&#x2F;span&gt;&lt;span&gt;    }
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;table&gt;&lt;thead&gt;&lt;tr&gt;&lt;th&gt;Original image&lt;&#x2F;th&gt;&lt;th&gt;Encrypted with AES-ECB&lt;&#x2F;th&gt;&lt;th&gt;Encrypted with AES-GCM&lt;&#x2F;th&gt;&lt;&#x2F;tr&gt;&lt;&#x2F;thead&gt;&lt;tbody&gt;
+&lt;tr&gt;&lt;td&gt;&lt;img src=&quot;&#x2F;images&#x2F;Tux.png&quot;&gt;&lt;&#x2F;td&gt;&lt;td&gt;&lt;img src=&quot;&#x2F;images&#x2F;Tux.ecb.encrypted.png&quot;&gt;&lt;&#x2F;td&gt;&lt;td&gt;&lt;img src=&quot;&#x2F;images&#x2F;Tux.gcm.encrypted.png&quot;&gt;&lt;&#x2F;td&gt;&lt;&#x2F;tr&gt;
+&lt;&#x2F;tbody&gt;&lt;&#x2F;table&gt;
+&lt;h3 id=&quot;conclusions&quot;&gt;Conclusions&lt;&#x2F;h3&gt;
+&lt;p&gt;The image encrypted with AES-GCM bears no resemblance to the original input. The big white, black, and orange blobs
+of colour are clearly distinguishable when using AES in ECB mode, despite having used a state-of-the-art
+encryption key derivation function. Ultimately, ECB transforms the blocks from the original input in an extremely
+predictable way, making the encryption key almost laughably irrelevant.&lt;&#x2F;p&gt;
+&lt;p&gt;On the other hand, it is impossible to spot any element of the original image in the GCM output: &lt;strong&gt;the penguin disappeared&lt;&#x2F;strong&gt;.&lt;&#x2F;p&gt;
+&lt;h3 id=&quot;notes&quot;&gt;Notes&lt;&#x2F;h3&gt;
+&lt;p&gt;The &lt;a href=&quot;&#x2F;images&#x2F;Tux.ppm&quot;&gt;Tux.ppm&lt;&#x2F;a&gt; image and the &lt;a href=&quot;https:&#x2F;&#x2F;gist.github.com&#x2F;marsavar&#x2F;76f672fd6151da23dbe7de1161370dda&quot;&gt;CLI source code&lt;&#x2F;a&gt; are available for download.&lt;&#x2F;p&gt;
+&lt;p&gt;Below are some extra checks validating the integrity of the files after the encryption&#x2F;decryption round trip.&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;bash&quot; style=&quot;background-color:#ffffff;color:#4d4d4c;&quot; class=&quot;language-bash &quot;&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;span style=&quot;color:#999999;&quot;&gt;# Round trip with AES-ECB produces the same digest
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c82829;&quot;&gt;cargo&lt;&#x2F;span&gt;&lt;span style=&quot;color:#4271ae;&quot;&gt; run&lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt; --&lt;&#x2F;span&gt;&lt;span style=&quot;color:#4271ae;&quot;&gt; encrypt --file Tux.ppm --key sunshine123 --mode ecb
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c82829;&quot;&gt;cargo&lt;&#x2F;span&gt;&lt;span style=&quot;color:#4271ae;&quot;&gt; run&lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt; --&lt;&#x2F;span&gt;&lt;span style=&quot;color:#4271ae;&quot;&gt; decrypt --file Tux.Ecb.67438efc.encrypted.ppm --key sunshine123 --mode ecb
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c82829;&quot;&gt;sha256&lt;&#x2F;span&gt;&lt;span style=&quot;color:#4271ae;&quot;&gt; Tux.ppm &lt;&#x2F;span&gt;&lt;span style=&quot;color:#999999;&quot;&gt;# 6fb56d4eb39e35603b525e9dd3e3cd33a16e34f32bd1196ae47402df65a50ab0
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c82829;&quot;&gt;sha256&lt;&#x2F;span&gt;&lt;span style=&quot;color:#4271ae;&quot;&gt; Tux.Ecb.67438efc.decrypted.ppm &lt;&#x2F;span&gt;&lt;span style=&quot;color:#999999;&quot;&gt;# 6fb56d4eb39e35603b525e9dd3e3cd33a16e34f32bd1196ae47402df65a50ab0
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#999999;&quot;&gt;# Round trip with AES-GCM also produces the same digest
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c82829;&quot;&gt;cargo&lt;&#x2F;span&gt;&lt;span style=&quot;color:#4271ae;&quot;&gt; run&lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt; --&lt;&#x2F;span&gt;&lt;span style=&quot;color:#4271ae;&quot;&gt; encrypt --file Tux.ppm --key sunshine123 --mode gcm
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c82829;&quot;&gt;cargo&lt;&#x2F;span&gt;&lt;span style=&quot;color:#4271ae;&quot;&gt; run&lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt; --&lt;&#x2F;span&gt;&lt;span style=&quot;color:#4271ae;&quot;&gt; decrypt --file Tux.Gcm.f56ef398.encrypted.ppm --key sunshine123 --mode gcm
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#c82829;&quot;&gt;sha256&lt;&#x2F;span&gt;&lt;span style=&quot;color:#4271ae;&quot;&gt; Tux.Gcm.f56ef398.decrypted.ppm &lt;&#x2F;span&gt;&lt;span style=&quot;color:#999999;&quot;&gt;# 6fb56d4eb39e35603b525e9dd3e3cd33a16e34f32bd1196ae47402df65a50ab0
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+</description>
+      </item>
+    </channel>
+</rss>
