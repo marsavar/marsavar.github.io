@@ -12,7 +12,7 @@ taxonomies = [{ name = "tags", feed = true }]
 # Feeds
 author = "Mario Savarese"
 title = "Mario Savarese"
-description = "Mario Savarese's blog"
+description = "mariosavarese.com/blog feed"
 generate_feeds = true
 feed_filenames = ["atom.xml", "rss.xml"]
 
