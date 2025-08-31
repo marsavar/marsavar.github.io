@@ -3,27 +3,6 @@
 # abort on errors
 set -e
 
-pushd blog
-cp -a static/* ../public/
-zola build --output-dir ../src/pages/blog --force
-popd
-
-sed -i '' 's|blog/sitemap.xml|sitemap.xml|' src/pages/blog/robots.txt
-
-cp src/pages/blog/sitemap.xml public/sitemap.xml
-
-mkdir -p public/blog
-cp src/pages/blog/robots.txt public/robots.txt
-cp src/pages/blog/*.xml public/blog/
-cp public/fog32x32.png public/blog/fog32x32.png
-
-for d in src/pages/blog/tags/*/; do
-    if ls "$d"/*.xml >/dev/null 2>&1; then
-        mkdir -p "public/blog/tags/$(basename "$d")"
-        cp "$d"/*.xml "public/blog/tags/$(basename "$d")/"
-    fi
-done
-
 # build
 npm run build
 
